@@ -1144,7 +1144,7 @@ async function openTestConfigModal(testId = null) {
     document.getElementById('cfg-enable-machine').checked = !!test.enableMultiMachine;
     document.getElementById('cfg-max-machines').value = test.maxMachines || 3;
   } else {
-    title.textContent = 'เพิ่มโครงสร้างแบบทดสอบใหม่ (Layer 1)';
+    title.textContent = 'เพิ่มโครงสร้างแบบทดสอบใหม่';
     document.getElementById('cfg-test-id').value = '';
     document.getElementById('cfg-test-key').value = `TEST_${String.fromCharCode(65 + tests.length)}`;
     document.getElementById('cfg-test-name').value = `แบบทดสอบใหม่ ${String.fromCharCode(65 + tests.length)}`;

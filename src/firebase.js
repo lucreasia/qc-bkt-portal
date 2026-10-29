@@ -1,5 +1,5 @@
 // ============================================================================
-// Firebase SDK Initializer & Unified Service Layer (2-Layer Test Architecture)
+// Firebase SDK Initializer & Pure Cloud Firestore Sync (100% Real-Time DB)
 // ============================================================================
 
 import { initializeApp, deleteApp } from 'firebase/app';
@@ -49,17 +49,16 @@ if (isFirebaseConfigured) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
-    console.log('[Firebase] Initialized with project:', firebaseConfig.projectId);
+    console.log('[Firebase] Connected to Cloud Firestore Project:', firebaseConfig.projectId);
   } catch (err) {
-    console.warn('[Firebase] Init error, running with fallback:', err);
+    console.error('[Firebase] Critical Init Error:', err);
   }
 }
 
 export { auth, db };
 
 // ============================================================================
-// Default Test Configurations (Layer 1 Seed)
-// รองรับ Multi-Level (LV1, LV2, LV3) และ Multi-Machine
+// Default Test Configurations (Initial Cloud Firestore Blueprint)
 // ============================================================================
 const DEFAULT_TEST_CONFIGS = [
   {
@@ -106,22 +105,6 @@ const DEFAULT_TEST_CONFIGS = [
   }
 ];
 
-// Initial default superadmin
-const INITIAL_SUPER_ADMIN = {
-  uid: 'adminbkt_super_uid',
-  username: 'adminbkt',
-  email: 'adminbkt@bkt.com',
-  name: 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)',
-  code: 'ADMIN-HQ',
-  department: 'ศูนย์บริหารจัดการข้อมูลการทดสอบกลาง',
-  contact: 'ผู้ควบคุมระบบส่วนกลาง',
-  role: 'admin'
-};
-
-// ============================================================================
-// Service API Layer (Unified Interface for Auth & Data)
-// ============================================================================
-
 export function normalizeUserEmail(input) {
   const trimmed = input.trim();
   if (trimmed.includes('@')) {
@@ -130,84 +113,80 @@ export function normalizeUserEmail(input) {
   return `${trimmed.toLowerCase()}@bkt.com`;
 }
 
-/**
- * Login function
- */
+// ============================================================================
+// 1. Authentication (Firebase Auth Only)
+// ============================================================================
 export async function apiLogin(userInput, password) {
   const email = normalizeUserEmail(userInput);
   const username = email.split('@')[0];
   const isSuperAdmin = (email === 'adminbkt@bkt.com' || email === 'admin@bkt.com' || username === 'adminbkt');
 
-  if (isFirebaseConfigured && auth && db) {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const uid = userCredential.user.uid;
-      const userDocRef = doc(db, 'users', uid);
-      let userDoc = null;
-      try {
-        userDoc = await getDoc(userDocRef);
-      } catch (docErr) {
-        console.warn('Could not read user doc from Firestore:', docErr);
-      }
+  if (!isFirebaseConfigured || !auth || !db) {
+    throw new Error('ไม่พบการตั้งค่าเชื่อมต่อ Firebase');
+  }
 
-      let userData;
-      if (userDoc && userDoc.exists()) {
-        userData = { uid, ...userDoc.data() };
-        if (isSuperAdmin && userData.role !== 'admin') {
-          userData.role = 'admin';
-          await setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(() => {});
-        }
-      } else {
-        userData = {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const uid = userCredential.user.uid;
+    const userDocRef = doc(db, 'users', uid);
+    const userDoc = await getDoc(userDocRef);
+
+    let userData;
+    if (userDoc.exists()) {
+      userData = { uid, ...userDoc.data() };
+      if (isSuperAdmin && userData.role !== 'admin') {
+        userData.role = 'admin';
+        await setDoc(userDocRef, { role: 'admin' }, { merge: true });
+      }
+    } else {
+      userData = {
+        uid,
+        email,
+        username,
+        name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : `หน่วยงาน ${username.toUpperCase()}`,
+        code: isSuperAdmin ? 'ADMIN-HQ' : `LAB-${username.toUpperCase()}`,
+        department: isSuperAdmin ? 'ศูนย์บริหารจัดการข้อมูลกลาง' : 'ห้องปฏิบัติการมาตรฐาน',
+        contact: 'เจ้าหน้าที่ผู้รับผิดชอบ',
+        role: isSuperAdmin ? 'admin' : 'user',
+        createdAt: new Date().toISOString()
+      };
+      await setDoc(userDocRef, userData, { merge: true });
+    }
+
+    // Only session indicator in local storage
+    localStorage.setItem('portal_current_user', JSON.stringify(userData));
+    return userData;
+  } catch (firebaseErr) {
+    console.error('[Firebase Auth Login Error]:', firebaseErr.code, firebaseErr.message);
+
+    // Auto-create superadmin in Firebase Auth if not exists yet
+    if (isSuperAdmin && password === 'adminbkt' && (firebaseErr.code === 'auth/invalid-credential' || firebaseErr.code === 'auth/user-not-found')) {
+      try {
+        const newCred = await createUserWithEmailAndPassword(auth, email, password);
+        const uid = newCred.user.uid;
+        const adminData = {
           uid,
           email,
-          username,
-          name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : `หน่วยงาน ${username.toUpperCase()}`,
-          code: isSuperAdmin ? 'ADMIN-HQ' : `LAB-${username.toUpperCase()}`,
-          department: isSuperAdmin ? 'ศูนย์บริหารจัดการข้อมูลกลาง' : 'ห้องปฏิบัติการมาตรฐาน',
-          contact: 'เจ้าหน้าที่ผู้รับผิดชอบ',
-          role: isSuperAdmin ? 'admin' : 'user',
+          username: 'adminbkt',
+          name: 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)',
+          code: 'ADMIN-HQ',
+          department: 'ศูนย์บริหารจัดการข้อมูลกลาง',
+          contact: 'ผู้ควบคุมระบบส่วนกลาง',
+          role: 'admin',
           createdAt: new Date().toISOString()
         };
-        await setDoc(userDocRef, userData, { merge: true }).catch(() => {});
+        await setDoc(doc(db, 'users', uid), adminData, { merge: true });
+        localStorage.setItem('portal_current_user', JSON.stringify(adminData));
+        return adminData;
+      } catch (createErr) {
+        console.error('Auto-creation of admin failed:', createErr);
       }
-
-      localStorage.setItem('portal_current_user', JSON.stringify(userData));
-      return userData;
-    } catch (firebaseErr) {
-      console.warn('[Firebase Auth Error]:', firebaseErr.code, firebaseErr.message);
-
-      if (isSuperAdmin && password === 'adminbkt') {
-        localStorage.setItem('portal_current_user', JSON.stringify(INITIAL_SUPER_ADMIN));
-        return INITIAL_SUPER_ADMIN;
-      }
-
-      const localUsers = await apiGetUsers();
-      const matched = localUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (matched && (password === username || password === 'adminbkt' || password === '123456')) {
-        localStorage.setItem('portal_current_user', JSON.stringify(matched));
-        return matched;
-      }
-
-      if (firebaseErr.code === 'auth/invalid-credential' || firebaseErr.code === 'auth/user-not-found' || firebaseErr.code === 'auth/wrong-password') {
-        throw new Error('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
-      }
-      throw new Error(`การเข้าสู่ระบบขัดข้อง: ${firebaseErr.message}`);
-    }
-  } else {
-    if (isSuperAdmin && (password === 'adminbkt' || password === 'admin')) {
-      localStorage.setItem('portal_current_user', JSON.stringify(INITIAL_SUPER_ADMIN));
-      return INITIAL_SUPER_ADMIN;
     }
 
-    const localUsers = await apiGetUsers();
-    const matched = localUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (matched && (password === username || password === '123456')) {
-      localStorage.setItem('portal_current_user', JSON.stringify(matched));
-      return matched;
+    if (firebaseErr.code === 'auth/invalid-credential' || firebaseErr.code === 'auth/user-not-found' || firebaseErr.code === 'auth/wrong-password') {
+      throw new Error('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
     }
-
-    throw new Error('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง');
+    throw new Error(`การเข้าสู่ระบบขัดข้อง: ${firebaseErr.message}`);
   }
 }
 
@@ -223,123 +202,75 @@ export async function apiLogout() {
 }
 
 export async function apiGetCurrentUser() {
-  const local = localStorage.getItem('portal_current_user');
-  const parsedLocal = local ? JSON.parse(local) : null;
+  if (!isFirebaseConfigured || !auth || !db) return null;
 
-  if (isFirebaseConfigured && auth && db) {
-    return new Promise((resolve) => {
-      onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
-            if (userDoc.exists()) {
-              const fullData = { uid: user.uid, ...userDoc.data() };
-              localStorage.setItem('portal_current_user', JSON.stringify(fullData));
-              resolve(fullData);
-              return;
-            }
-          } catch (e) {
-            console.error('Error fetching user profile:', e);
+  return new Promise((resolve) => {
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const fullData = { uid: user.uid, ...userDoc.data() };
+            localStorage.setItem('portal_current_user', JSON.stringify(fullData));
+            resolve(fullData);
+            return;
           }
-          const email = user.email || '';
-          const isSuperAdmin = (email === 'adminbkt@bkt.com' || email === 'admin@bkt.com');
-          const fallback = {
-            uid: user.uid,
-            email,
-            username: email.split('@')[0],
-            name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : (email.split('@')[0] || 'User'),
-            role: isSuperAdmin ? 'admin' : 'user'
-          };
-          resolve(fallback);
-        } else {
-          resolve(parsedLocal);
+        } catch (e) {
+          console.error('Error fetching user profile from Firestore:', e);
         }
-      });
+        const email = user.email || '';
+        const isSuperAdmin = (email === 'adminbkt@bkt.com' || email === 'admin@bkt.com');
+        const fallback = {
+          uid: user.uid,
+          email,
+          username: email.split('@')[0],
+          name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : (email.split('@')[0] || 'User'),
+          role: isSuperAdmin ? 'admin' : 'user'
+        };
+        resolve(fallback);
+      } else {
+        localStorage.removeItem('portal_current_user');
+        resolve(null);
+      }
     });
-  }
-  return parsedLocal;
+  });
 }
 
 // ============================================================================
-// User Management API
+// 2. User Management API (Direct Cloud Firestore Only)
 // ============================================================================
 export async function apiGetUsers() {
-  const firestoreUsers = [];
-  if (isFirebaseConfigured && db) {
-    try {
-      const snap = await getDocs(collection(db, 'users'));
-      snap.forEach(d => firestoreUsers.push({ uid: d.id, ...d.data() }));
-    } catch (e) {
-      console.warn('Firestore users fetch failed:', e);
-    }
-  }
+  if (!isFirebaseConfigured || !db) return [];
 
-  const rawLocal = localStorage.getItem('portal_all_users');
-  let localUsers = rawLocal ? JSON.parse(rawLocal) : null;
-
-  if (firestoreUsers.length > 0) {
-    localStorage.setItem('portal_all_users', JSON.stringify(firestoreUsers));
-    return firestoreUsers;
+  try {
+    const snap = await getDocs(collection(db, 'users'));
+    const list = [];
+    snap.forEach(d => list.push({ uid: d.id, ...d.data() }));
+    return list;
+  } catch (e) {
+    console.error('[Firestore Error] apiGetUsers failed:', e);
+    throw new Error('ไม่สามารถโหลดข้อมูลผู้ใช้งานจาก Cloud Firestore ได้ (กรุณาตรวจสอบ Rules ใน Firebase Console)');
   }
-
-  if (!localUsers) {
-    localUsers = [INITIAL_SUPER_ADMIN];
-    localStorage.setItem('portal_all_users', JSON.stringify(localUsers));
-  }
-  return localUsers;
 }
 
 export async function apiCreateUserByAdmin({ email, password, name, code, department, contact, role }) {
   const normEmail = normalizeUserEmail(email);
   const username = normEmail.split('@')[0];
-  let newUserDoc = null;
 
-  if (isFirebaseConfigured && db) {
-    const secondaryAppName = `AdminCreator_${Date.now()}`;
-    const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
-    const secondaryAuth = getAuth(secondaryApp);
-    const secondaryDb = getFirestore(secondaryApp);
-
-    try {
-      const cred = await createUserWithEmailAndPassword(secondaryAuth, normEmail, password);
-      const newUid = cred.user.uid;
-
-      newUserDoc = {
-        uid: newUid,
-        email: normEmail,
-        username,
-        name: name || `ศูนย์ทดสอบ ${username}`,
-        code: code || `LAB-${username.toUpperCase()}`,
-        department: department || 'แผนกห้องปฏิบัติการมาตรฐาน',
-        contact: contact || '-',
-        role: role || 'user',
-        createdAt: new Date().toISOString()
-      };
-
-      try {
-        await setDoc(doc(secondaryDb, 'users', newUid), newUserDoc);
-      } catch (errWriteSecondary) {
-        await setDoc(doc(db, 'users', newUid), newUserDoc).catch(() => {});
-      }
-
-      await signOut(secondaryAuth).catch(() => {});
-      await deleteApp(secondaryApp).catch(() => {});
-    } catch (err) {
-      await signOut(secondaryAuth).catch(() => {});
-      await deleteApp(secondaryApp).catch(() => {});
-      if (err.code === 'auth/email-already-in-use') {
-        throw new Error(`อีเมล ${normEmail} มีอยู่ในระบบแล้ว`);
-      }
-      if (err.code === 'auth/weak-password') {
-        throw new Error('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
-      }
-      throw new Error(`ไม่สามารถสร้างผู้ใช้งานในระบบได้: ${err.message}`);
-    }
+  if (!isFirebaseConfigured || !db) {
+    throw new Error('ระบบยังไม่ได้เชื่อมต่อ Firebase');
   }
 
-  if (!newUserDoc) {
-    newUserDoc = {
-      uid: `user_${Date.now()}`,
+  const secondaryAppName = `AdminCreator_${Date.now()}`;
+  const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+  const secondaryAuth = getAuth(secondaryApp);
+
+  try {
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, normEmail, password);
+    const newUid = cred.user.uid;
+
+    const newUserDoc = {
+      uid: newUid,
       email: normEmail,
       username,
       name: name || `ศูนย์ทดสอบ ${username}`,
@@ -349,193 +280,165 @@ export async function apiCreateUserByAdmin({ email, password, name, code, depart
       role: role || 'user',
       createdAt: new Date().toISOString()
     };
-  }
 
-  const currentList = await apiGetUsers();
-  const existingIdx = currentList.findIndex(u => u.email.toLowerCase() === normEmail.toLowerCase());
-  if (existingIdx >= 0) {
-    currentList[existingIdx] = newUserDoc;
-  } else {
-    currentList.push(newUserDoc);
+    // Save directly to main Cloud Firestore
+    await setDoc(doc(db, 'users', newUid), newUserDoc);
+
+    await signOut(secondaryAuth).catch(() => {});
+    await deleteApp(secondaryApp).catch(() => {});
+
+    return newUserDoc;
+  } catch (err) {
+    await signOut(secondaryAuth).catch(() => {});
+    await deleteApp(secondaryApp).catch(() => {});
+    if (err.code === 'auth/email-already-in-use') {
+      throw new Error(`อีเมล ${normEmail} มีอยู่ในระบบแล้ว`);
+    }
+    if (err.code === 'auth/weak-password') {
+      throw new Error('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+    }
+    throw new Error(`ไม่สามารถสร้างผู้ใช้งานในระบบได้: ${err.message}`);
   }
-  localStorage.setItem('portal_all_users', JSON.stringify(currentList));
-  return newUserDoc;
 }
 
 export async function apiUpdateUser(uid, updates) {
-  const list = await apiGetUsers();
-  const idx = list.findIndex(u => u.uid === uid);
-  if (idx >= 0) {
-    list[idx] = { ...list[idx], ...updates };
-    localStorage.setItem('portal_all_users', JSON.stringify(list));
-  }
-
-  if (isFirebaseConfigured && db) {
-    try {
-      await updateDoc(doc(db, 'users', uid), updates);
-    } catch (e) {
-      console.warn('Firestore updateDoc failed:', e);
-    }
+  if (!isFirebaseConfigured || !db) return;
+  try {
+    await updateDoc(doc(db, 'users', uid), updates);
+  } catch (e) {
+    console.error('[Firestore Error] apiUpdateUser failed:', e);
+    throw new Error('ไม่สามารถอัปเดตข้อมูลผู้ใช้งานบน Cloud Firestore ได้');
   }
 }
 
 export async function apiDeleteUser(uid) {
-  const rawLocal = localStorage.getItem('portal_all_users');
-  if (rawLocal) {
-    const list = JSON.parse(rawLocal);
-    const filtered = list.filter(u => u.uid !== uid);
-    localStorage.setItem('portal_all_users', JSON.stringify(filtered));
-  }
-
-  if (isFirebaseConfigured && db) {
-    try {
-      await deleteDoc(doc(db, 'users', uid));
-    } catch (e) {
-      console.warn('Firestore deleteDoc failed:', e);
-    }
+  if (!isFirebaseConfigured || !db) return;
+  try {
+    await deleteDoc(doc(db, 'users', uid));
+  } catch (e) {
+    console.error('[Firestore Error] apiDeleteUser failed:', e);
+    throw new Error('ไม่สามารถลบผู้ใช้งานบน Cloud Firestore ได้');
   }
 }
 
 // ============================================================================
-// LAYER 1: Master Test Configurations API
+// 3. Test Configurations API (Direct Cloud Firestore Only)
 // ============================================================================
 export async function apiGetTestConfigs() {
-  if (isFirebaseConfigured && db) {
-    try {
-      const q = query(collection(db, 'test_configs'), orderBy('order', 'asc'));
-      const snap = await getDocs(q);
-      const list = [];
-      snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-      if (list.length > 0) return list;
-    } catch (e) {
-      console.warn('Firestore test_configs fetch failed, using fallback:', e);
-    }
-  }
+  if (!isFirebaseConfigured || !db) return DEFAULT_TEST_CONFIGS;
 
-  const raw = localStorage.getItem('portal_test_configs');
-  if (!raw) {
-    localStorage.setItem('portal_test_configs', JSON.stringify(DEFAULT_TEST_CONFIGS));
-    return DEFAULT_TEST_CONFIGS;
+  try {
+    const q = query(collection(db, 'test_configs'), orderBy('order', 'asc'));
+    const snap = await getDocs(q);
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+
+    // If completely empty in Firestore, seed initial defaults directly into Firestore
+    if (list.length === 0) {
+      for (const item of DEFAULT_TEST_CONFIGS) {
+        await setDoc(doc(db, 'test_configs', item.id), item);
+      }
+      return DEFAULT_TEST_CONFIGS;
+    }
+    return list;
+  } catch (e) {
+    console.error('[Firestore Error] apiGetTestConfigs failed:', e);
+    throw new Error('ไม่สามารถโหลดข้อมูลแบบทดสอบจาก Cloud Firestore ได้');
   }
-  return JSON.parse(raw);
 }
 
 export async function apiSaveTestConfig(config) {
-  const list = await apiGetTestConfigs();
-  const idx = list.findIndex(t => t.id === config.id);
-  if (idx >= 0) {
-    list[idx] = config;
-  } else {
-    list.push(config);
-  }
-  localStorage.setItem('portal_test_configs', JSON.stringify(list));
+  if (!isFirebaseConfigured || !db) throw new Error('ระบบยังไม่ได้เชื่อมต่อ Firebase');
 
-  if (isFirebaseConfigured && db) {
-    try {
-      const docRef = doc(db, 'test_configs', config.id);
-      await setDoc(docRef, config, { merge: true });
-    } catch (e) {
-      console.warn('Firestore test_configs save failed:', e);
-    }
+  try {
+    const docRef = doc(db, 'test_configs', config.id);
+    await setDoc(docRef, config, { merge: true });
+  } catch (e) {
+    console.error('[Firestore Error] apiSaveTestConfig failed:', e);
+    throw new Error(`ไม่สามารถบันทึกแบบทดสอบลง Cloud Firestore: ${e.message}`);
   }
 }
 
 export async function apiDeleteTestConfig(testId) {
-  const list = await apiGetTestConfigs();
-  const filtered = list.filter(t => t.id !== testId);
-  localStorage.setItem('portal_test_configs', JSON.stringify(filtered));
+  if (!isFirebaseConfigured || !db) return;
 
-  if (isFirebaseConfigured && db) {
-    try {
-      await deleteDoc(doc(db, 'test_configs', testId));
-    } catch (e) {
-      console.warn('Firestore test_configs delete failed:', e);
-    }
+  try {
+    await deleteDoc(doc(db, 'test_configs', testId));
+  } catch (e) {
+    console.error('[Firestore Error] apiDeleteTestConfig failed:', e);
+    throw new Error(`ไม่สามารถลบแบบทดสอบบน Cloud Firestore: ${e.message}`);
   }
 }
 
 // ============================================================================
-// LAYER 2: Monthly Lot & Answer Key API
+// 4. Monthly Lot & Answer Key API (Direct Cloud Firestore Only)
 // ============================================================================
 export async function apiGetMonthlyLots() {
-  if (isFirebaseConfigured && db) {
-    try {
-      const snap = await getDocs(collection(db, 'monthly_lots'));
-      const map = {};
-      snap.forEach(d => {
-        map[d.id] = d.data();
-      });
-      if (Object.keys(map).length > 0) return map;
-    } catch (e) {
-      console.warn('Firestore monthly_lots fetch failed, using fallback:', e);
-    }
-  }
+  if (!isFirebaseConfigured || !db) return {};
 
-  const raw = localStorage.getItem('portal_monthly_lots');
-  return raw ? JSON.parse(raw) : {};
+  try {
+    const snap = await getDocs(collection(db, 'monthly_lots'));
+    const map = {};
+    snap.forEach(d => {
+      map[d.id] = d.data();
+    });
+    return map;
+  } catch (e) {
+    console.error('[Firestore Error] apiGetMonthlyLots failed:', e);
+    throw new Error('ไม่สามารถโหลดข้อมูล Lot ประจำเดือนจาก Cloud Firestore ได้');
+  }
 }
 
 export async function apiSaveMonthlyLot(lotKey, lotData) {
-  const lots = await apiGetMonthlyLots();
-  lots[lotKey] = lotData;
-  localStorage.setItem('portal_monthly_lots', JSON.stringify(lots));
+  if (!isFirebaseConfigured || !db) throw new Error('ระบบยังไม่ได้เชื่อมต่อ Firebase');
 
-  if (isFirebaseConfigured && db) {
-    try {
-      const docRef = doc(db, 'monthly_lots', lotKey);
-      await setDoc(docRef, lotData, { merge: true });
-    } catch (e) {
-      console.warn('Firestore saveMonthlyLot failed:', e);
-    }
+  try {
+    const docRef = doc(db, 'monthly_lots', lotKey);
+    await setDoc(docRef, lotData, { merge: true });
+  } catch (e) {
+    console.error('[Firestore Error] apiSaveMonthlyLot failed:', e);
+    throw new Error(`ไม่สามารถบันทึก Lot ประจำเดือนลง Cloud Firestore: ${e.message}`);
   }
 }
 
 // ============================================================================
-// Submissions API (Supports Multi-Level & Multi-Machine Matrix)
+// 5. Submissions API (Direct Cloud Firestore Only)
 // ============================================================================
 export async function apiGetSubmissions() {
-  if (isFirebaseConfigured && db) {
-    try {
-      const snap = await getDocs(collection(db, 'submissions'));
-      const map = {};
-      snap.forEach(d => {
-        map[d.id] = d.data();
-      });
-      return map;
-    } catch (e) {
-      console.warn('Firestore submissions fetch failed, using fallback:', e);
-    }
-  }
+  if (!isFirebaseConfigured || !db) return {};
 
-  const raw = localStorage.getItem('portal_submissions');
-  return raw ? JSON.parse(raw) : {};
+  try {
+    const snap = await getDocs(collection(db, 'submissions'));
+    const map = {};
+    snap.forEach(d => {
+      map[d.id] = d.data();
+    });
+    return map;
+  } catch (e) {
+    console.error('[Firestore Error] apiGetSubmissions failed:', e);
+    throw new Error('ไม่สามารถโหลดข้อมูลผลการทดสอบจาก Cloud Firestore ได้');
+  }
 }
 
 export async function apiSaveSubmission(submissionKey, submissionData) {
-  const submissions = await apiGetSubmissions();
-  submissions[submissionKey] = submissionData;
-  localStorage.setItem('portal_submissions', JSON.stringify(submissions));
+  if (!isFirebaseConfigured || !db) throw new Error('ระบบยังไม่ได้เชื่อมต่อ Firebase');
 
-  if (isFirebaseConfigured && db) {
-    try {
-      const docRef = doc(db, 'submissions', submissionKey);
-      await setDoc(docRef, submissionData, { merge: true });
-    } catch (e) {
-      console.warn('Firestore saveSubmission failed:', e);
-    }
+  try {
+    const docRef = doc(db, 'submissions', submissionKey);
+    await setDoc(docRef, submissionData, { merge: true });
+  } catch (e) {
+    console.error('[Firestore Error] apiSaveSubmission failed:', e);
+    throw new Error(`ไม่สามารถบันทึกผลการทดสอบลง Cloud Firestore: ${e.message}`);
   }
 }
 
 export async function apiDeleteSubmission(submissionKey) {
-  const submissions = await apiGetSubmissions();
-  delete submissions[submissionKey];
-  localStorage.setItem('portal_submissions', JSON.stringify(submissions));
+  if (!isFirebaseConfigured || !db) return;
 
-  if (isFirebaseConfigured && db) {
-    try {
-      await deleteDoc(doc(db, 'submissions', submissionKey));
-    } catch (e) {
-      console.warn('Firestore deleteSubmission failed:', e);
-    }
+  try {
+    await deleteDoc(doc(db, 'submissions', submissionKey));
+  } catch (e) {
+    console.error('[Firestore Error] apiDeleteSubmission failed:', e);
+    throw new Error(`ไม่สามารถลบผลการทดสอบบน Cloud Firestore: ${e.message}`);
   }
 }

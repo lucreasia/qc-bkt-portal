@@ -1,47 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isSuperAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'adminbkt@bkt.com' || 
-        request.auth.token.email == 'admin@bkt.com' ||
-        request.auth.token.email == 'admin@portal.local'
-      );
-    }
-
-    function isAdmin() {
-      return isSuperAdmin() || (
-        isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
-    }
-
-    // 1. Users collection
-    // - Authenticated users can read all user basic info (needed for dropdown/site names)
-    // - Users can create/update their own profile, or Admin can manage all profiles
-    match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isSignedIn() && isAdmin();
-    }
-
-    // 2. Test Configurations collection
-    match /test_configs/{testId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && isAdmin();
-    }
-
-    // 3. Submissions collection
-    match /submissions/{submissionId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
-      allow delete: if isSignedIn() && isAdmin();
+    // ผู้ใช้งานที่ผ่านการเข้าสู่ระบบแล้ว สามารถอ่านและบันทึกข้อมูลทุก Collection ได้อย่างสมบูรณ์
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }

@@ -87,7 +87,7 @@
         <div class="hidden md:flex items-center gap-2 text-xs text-slate-400 font-medium">
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>ระบบมาตรฐานการรายงานผล 2-Layer</span>
+            <span>ระบบมาตรฐานการรายงานผล</span>
           </span>
         </div>
 
@@ -211,7 +211,7 @@
     </div>
 
     <!-- ------------------------------------------------------------- -->
-    <!-- VIEW 3: ENTRY MODAL (Dynamic Multi-Level & Multi-Machine)      -->
+    <!-- VIEW 3: ENTRY MODAL                                           -->
     <!-- ------------------------------------------------------------- -->
     <div id="modal-entry" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div class="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
@@ -277,7 +277,7 @@
     </div>
 
     <!-- ------------------------------------------------------------- -->
-    <!-- VIEW 4: ADMIN PORTAL (ระบบบริหารจัดการ 2 ชั้น)                 -->
+    <!-- VIEW 4: ADMIN PORTAL                                          -->
     <!-- ------------------------------------------------------------- -->
     <div id="view-admin" class="hidden space-y-6">
 
@@ -285,7 +285,7 @@
         <div>
           <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30 mb-2">
             <i data-lucide="shield" class="w-3.5 h-3.5"></i>
-            ADMINISTRATION MANAGEMENT SYSTEM (2-LAYER CONFIGURATION)
+            ADMINISTRATION MANAGEMENT SYSTEM
           </div>
           <h2 class="text-xl font-bold">ระบบบริหารจัดการสำหรับผู้ดูแลระบบ</h2>
           <p class="text-xs text-slate-300 mt-1">ตั้งค่าโครงสร้างแบบทดสอบ กำหนด Lot & เฉลยประจำเดือน ตรวจสอบผล และจัดการผู้ใช้งาน</p>
@@ -298,7 +298,7 @@
         </div>
       </div>
 
-      <!-- Navigation Tabs: 4 Tabs -->
+      <!-- Navigation Tabs: 4 Tabs (Clean Wording without Layer) -->
       <div class="flex border-b border-slate-200 gap-4 overflow-x-auto">
         <button id="admin-tab-results-btn" class="pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition whitespace-nowrap">
           <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
@@ -306,12 +306,12 @@
         </button>
         <button id="admin-tab-config-btn" class="pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition whitespace-nowrap">
           <i data-lucide="sliders" class="w-4 h-4"></i>
-          <span>Layer 1: โครงสร้างแบบทดสอบ</span>
+          <span>โครงสร้างแบบทดสอบ</span>
           <span id="admin-tests-count-badge" class="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-xs font-mono">0</span>
         </button>
         <button id="admin-tab-lots-btn" class="pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition whitespace-nowrap">
           <i data-lucide="calendar-check-2" class="w-4 h-4"></i>
-          <span>Layer 2: รอบ Lot & เฉลยประจำเดือน</span>
+          <span>รอบ Lot & เฉลยประจำเดือน</span>
         </button>
         <button id="admin-tab-users-btn" class="pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition whitespace-nowrap">
           <i data-lucide="users" class="w-4 h-4"></i>
@@ -384,12 +384,12 @@
 
       </div>
 
-      <!-- TAB 2: LAYER 1 - CONFIG TESTS (แม่แบบโครงสร้างแบบทดสอบ) -->
+      <!-- TAB 2: CONFIG TESTS (แม่แบบโครงสร้างแบบทดสอบ) -->
       <div id="admin-tab-config" class="hidden space-y-6">
 
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
-            <h3 class="text-base font-bold text-slate-800">Layer 1: โครงสร้างแบบทดสอบหลัก (Master Test Blueprint)</h3>
+            <h3 class="text-base font-bold text-slate-800">โครงสร้างแบบทดสอบหลัก (Master Test Blueprint)</h3>
             <p class="text-xs text-slate-500 mt-0.5">กำหนดรายการแบบทดสอบ รูปแบบคำตอบ การแบ่งระดับ (Levels: LV1, LV2, LV3) และเปิด/ปิดออปชันการลงผลหลายเครื่อง</p>
           </div>
           <button id="admin-add-test-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
@@ -402,13 +402,13 @@
 
       </div>
 
-      <!-- TAB 3: LAYER 2 - MONTHLY LOT & ANSWER KEYS (รอบ Lot และเฉลย) -->
+      <!-- TAB 3: MONTHLY LOT & ANSWER KEYS (รอบ Lot และเฉลย) -->
       <div id="admin-tab-lots" class="hidden space-y-6">
 
         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 class="text-base font-bold text-slate-800">Layer 2: กำหนด Lot และเฉลยประจำเดือน (Monthly Lot & Answer Keys)</h3>
+              <h3 class="text-base font-bold text-slate-800">กำหนด Lot และเฉลยประจำเดือน (Monthly Lot & Answer Keys)</h3>
               <p class="text-xs text-slate-500 mt-0.5">เลือกรอบประจำเดือนเพื่อกำหนดหมายเลข Lot และระบุค่าช่วงเกณฑ์เฉลย (Min - Max) หรือคำตอบที่ถูกต้องของแต่ละ Level</p>
             </div>
             <div class="flex items-center gap-2">
@@ -444,9 +444,7 @@
             <span class="text-xs text-slate-400">เฉลยนี้จะมองเห็นเฉพาะผู้ดูแลระบบและแสดงในรายงาน PDF สรุปผล</span>
           </div>
 
-          <div id="lot-answer-keys-container" class="space-y-4">
-            <!-- Injected by main.js based on Layer 1 Tests -->
-          </div>
+          <div id="lot-answer-keys-container" class="space-y-4"></div>
 
           <div class="pt-4 border-t border-slate-100 flex justify-end">
             <button id="btn-save-lot-answers" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
@@ -495,13 +493,13 @@
 
   </main>
 
-  <!-- ================= MODAL: LAYER 1 TEST CONFIG ================= -->
+  <!-- ================= MODAL: TEST CONFIG ================= -->
   <div id="modal-test-config" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
       
       <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
         <div>
-          <h3 id="modal-test-config-title" class="text-base font-bold text-slate-800">ตั้งค่าโครงสร้างแบบทดสอบ (Layer 1)</h3>
+          <h3 id="modal-test-config-title" class="text-base font-bold text-slate-800">ตั้งค่าโครงสร้างแบบทดสอบ</h3>
           <p class="text-xs text-slate-500">กำหนดชื่อ รูปแบบคำตอบ Levels และตัวเลือกหลายเครื่อง</p>
         </div>
         <button id="modal-test-config-close-btn" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 flex items-center justify-center transition">
@@ -547,7 +545,7 @@
           <input type="text" id="cfg-test-options" placeholder="Positive (+), Negative (-), Borderline" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
         </div>
 
-        <!-- Layer 1 Advanced Settings: Multi-Level & Multi-Machine -->
+        <!-- Advanced Settings: Multi-Level & Multi-Machine -->
         <div class="pt-3 border-t border-slate-100 space-y-3 bg-slate-50 p-4 rounded-xl">
           <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
             <i data-lucide="layers" class="w-3.5 h-3.5 text-indigo-600"></i>
@@ -666,7 +664,7 @@
     </div>
   </div>
 
-  <!-- ================= MODAL: PDF EXPORT (With Official Answer Keys) ================= -->
+  <!-- ================= MODAL: PDF EXPORT (With Answer Keys) ================= -->
   <div id="modal-pdf" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
       
