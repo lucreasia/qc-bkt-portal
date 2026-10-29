@@ -210,8 +210,23 @@ export async function apiGetCurrentUser() {
   if (!isFirebaseConfigured || !auth || !db) return null;
 
   return new Promise((resolve) => {
+    let resolved = false;
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve(null);
+      }
+    }, 2500);
+
     try {
-      onAuthStateChanged(auth, async (user) => {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timer);
+        if (typeof unsubscribe === 'function') {
+          try { unsubscribe(); } catch (_) {}
+        }
+
         if (user) {
           try {
             const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -240,8 +255,12 @@ export async function apiGetCurrentUser() {
         }
       });
     } catch (err) {
-      console.warn('onAuthStateChanged error:', err);
-      resolve(null);
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        console.warn('onAuthStateChanged error:', err);
+        resolve(null);
+      }
     }
   });
 }

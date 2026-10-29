@@ -65,16 +65,16 @@ export async function initApp() {
   const viewAdmin = document.getElementById('view-admin');
   const navUserInfo = document.getElementById('nav-user-info');
 
-  viewLogin.classList.add('hidden');
-  viewUser.classList.add('hidden');
-  viewAdmin.classList.add('hidden');
-
   try {
     currentUser = await apiGetCurrentUser();
   } catch (err) {
     console.warn('apiGetCurrentUser notice:', err);
     currentUser = null;
   }
+
+  viewLogin.classList.add('hidden');
+  viewUser.classList.add('hidden');
+  viewAdmin.classList.add('hidden');
 
   if (!currentUser) {
     // Show Login View Immediately
