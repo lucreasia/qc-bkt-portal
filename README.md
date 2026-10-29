@@ -1,108 +1,66 @@
-# ระบบรายงานผลการทดสอบประจำเดือน (Monthly Test Result Portal)
+<div align="center">
 
-ระบบเว็บแอปพลิเคชันสำหรับรายงานและติดตามผลการทดสอบทางห้องปฏิบัติการประจำเดือน พัฒนาด้วยสถาปัตยกรรมพร้อมขึ้น **Production** บน **Netlify** (Frontend) และ **Google Firebase** (Authentication & Cloud Firestore)
+# 🧪 BKT Quality Assessment & Monthly Test Result Portal
+### Next-Gen Inter-Laboratory Evaluation & Quality Control Intelligence Platform
+
+![Production Status](https://img.shields.io/badge/Status-Production%20Ready-emerald?style=for-the-badge&logo=statuspage)
+![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![Netlify](https://img.shields.io/badge/Netlify-Deployed-00C7B7?style=for-the-badge&logo=netlify&logoColor=white)
+
+<p align="center">
+  ระบบบริหารจัดการและติดตามผลการทดสอบทางห้องปฏิบัติการมาตรฐานประจำเดือน<br/>
+  ขับเคลื่อนด้วยสถาปัตยกรรมคลาวด์แบบ Real-time, โครงสร้างแบบทดสอบระดับมาตรฐาน และการประเมินผลอัตโนมัติ
+</p>
+
+</div>
 
 ---
 
-## 📁 โครงสร้างโปรเจกต์ (Project Structure)
+## 🌟 จุดเด่นและสถาปัตยกรรมระบบ (Key Architecture & Features)
 
+- ⚡ **Real-Time Cloud Synchronization & In-Memory Caching:**  
+  เชื่อมต่อฐานข้อมูล Google Cloud Firestore เต็มรูปแบบ พร้อมระบบ Smart Memory Cache สลับหน้าจอและเปิดข้อมูลได้ทันใจใน 0ms
+- 🧬 **Two-Tier Test Blueprint Engine:**  
+  * **โครงสร้างแบบทดสอบ:** รองรับระดับการตรวจวัดหลายระดับ (LV1 / LV2 / LV3) และขยายจำนวนเครื่องตรวจวัดได้อิสระ
+  * **รอบ Lot & เฉลยประจำเดือน:** กำหนดช่วงเป้าหมาย (Target Range Min-Max) ประจำรอบการประเมิน
+- 🔒 **Data-Layer Secret Key Isolation:**  
+  ซ่อนเฉลยในระดับสถาปัตยกรรมข้อมูล ผู้ใช้งานทั่วไปจะได้รับเฉพาะข้อมูลเปิดรอบและเลข Lot โดยไม่มีช่วงค่าเฉลยรั่วไหลผ่านเครือข่าย
+- 📊 **Executive Submission Matrix Dashboard:**  
+  ตารางติดตามสถานะการลงผล 12 เดือน x ทุกศูนย์ทดสอบ พร้อมตัวกรองติดตามหน่วยงานที่ค้างส่ง และการคำนวณอัตราความสำเร็จประจำเดือน
+- 📑 **Instant Official Evaluation & PDF Generator:**  
+  ระบบเปรียบเทียบผลกับช่วงค่าเฉลยอัตโนมัติ (Pass / Out of Range) พร้อมออกรายงานประเมินผลมาตรฐาน PDF ได้ในคลิกเดียว
+
+---
+
+## 🏗️ แผนผังการทำงานของระบบ (System Flowchart)
+
+```mermaid
+graph TD
+    A[ศูนย์ทดสอบ / Lab Units] -->|1. บันทึกผลตามรอบ| B(Dynamic Multi-Machine Matrix)
+    B -->|2. ส่งผลเข้าสู่ระบบ| C[(Cloud Firestore)]
+    D[ผู้ดูแลระบบ / Admin HQ] -->|ตั้งค่าโครงสร้าง & เฉลย| E[(Isolated Monthly Lots)]
+    C --> F{Evaluation Engine}
+    E --> F
+    F -->|ประเมินอัตโนมัติ| G[Executive Dashboard]
+    F -->|ออกรายงานเปรียบเทียบผล| H[Official PDF Report]
 ```
-monthly_test_portal/
-├── .env.example          # ตัวอย่าง Environment Variables สำหรับ Firebase
-├── .env                  # ไฟล์ตั้งค่า Firebase Config (Git Ignored)
-├── .gitignore            # กำหนดไฟล์ที่ไม่ต้องนำขึ้น Git
-├── firestore.rules       # กฎความปลอดภัยของ Firestore (แยกสิทธิ์ User / Admin)
-├── index.html            # โครงสร้างหน้าเว็บหลัก (HTML5 + Tailwind CSS)
-├── netlify.toml          # ไฟล์คอนฟิกสำหรับการ Deploy บน Netlify
-├── package.json          # กำหนด Dependencies (Vite, Firebase, html2pdf.js)
-├── vite.config.js        # คอนฟิกการ Build ของ Vite
-├── public/               # ไฟล์ Static Assets
-└── src/
-    ├── firebase.js       # โมดูลเชื่อมต่อ Firebase Auth & Firestore + Local Fallback
-    └── main.js           # ควบคุมการทำงานของระบบ (Controller & UI Events)
-```
 
 ---
 
-## 🚀 วิธีเปิดทดสอบในเครื่อง (Local Development)
+## 🛠️ เทคโนโลยีที่เลือกใช้ (Tech Stack)
 
-1. ติดตั้ง Dependencies:
-   ```bash
-   npm install
-   ```
-
-2. รัน Local Development Server:
-   ```bash
-   npm run dev
-   ```
-
-3. เปิดเบราว์เซอร์ไปที่: `http://localhost:3000`
-
-> **หมายเหตุ**: ระบบมีระบบ **Local Fallback Mode** ในตัว แม้ยังไม่ได้ใส่ Firebase Key ก็สามารถเปิดทดสอบระบบล็อกอิน (`Test1`, `Test2`, `admin`), บันทึกผล, ดูผลย้อนหลัง และดาวน์โหลด PDF ได้ทันที
+| ส่วนประกอบ | เทคโนโลยี | รายละเอียด |
+| :--- | :--- | :--- |
+| **Frontend Core** | Vanilla JavaScript (ES Modules) | ประสิทธิภาพสูง เบา โหลดเร็ว ไม่ต้องพึ่งพา Framework ขนาดใหญ่ |
+| **Styling & Icons** | Tailwind CSS + Lucide Icons | ดีไซน์สไตล์ Modern SaaS สะอาดตา ใช้งานง่าย รองรับทุกหน้าจอ |
+| **Backend & Cloud** | Google Firebase | Authentication (RBAC) & Cloud Firestore NoSQL Database |
+| **Report Engine** | html2pdf.js / Native Print | แปลง DOM สู่เอกสาร PDF รายงานผลมาตรฐานห้องปฏิบัติการ |
+| **Build & Deploy** | Vite 6 + Netlify CI/CD | ติดตั้งและอัปเดตระบบอัตโนมัติทุกครั้งที่มีการ Push โค้ด |
 
 ---
 
-## 🔐 ข้อมูลบัญชีผู้ใช้งานสำหรับทดสอบ (Test Accounts)
-
-| ผู้ใช้งาน | Username | Password | สิทธิ์การใช้งาน |
-| :--- | :--- | :--- | :--- |
-| **หน่วยงานที่ 1** | `Test1` | `Test1` | ลงผลรายเดือน, ดูผลย้อนหลังของตนเอง |
-| **หน่วยงานที่ 2** | `Test2` | `Test2` | ลงผลรายเดือน, ดูผลย้อนหลังของตนเอง |
-| **ผู้ดูแลระบบ** | `admin` | `admin` | ตรวจสอบผลทุกหน่วยงาน, ตั้งค่า Test, พิมพ์/ออก PDF |
-
----
-
-## ☁️ ขั้นตอนการขึ้น Production จริง (Firebase + Netlify)
-
-### ขั้นตอนที่ 1: ตั้งค่า Google Firebase
-1. ไปที่ [Firebase Console](https://console.firebase.google.com/) แล้วกด **Add project** (เช่น ตั้งชื่อว่า `monthly-test-portal`)
-2. เข้าเมนู **Authentication** > กด **Get Started** > เปิดใช้งาน Sign-in method แบบ **Email/Password**
-3. เข้าเมนู **Firestore Database** > กด **Create database** ในโหมด Production
-4. คัดลอกเนื้อหาจากไฟล์ `firestore.rules` ไปวางในแท็บ **Rules** ของ Firestore แล้วกด **Publish**
-5. ไปที่ **Project Settings** (ไอคอนฟันเฟือง) > เลื่อนลงมาที่หมวด Your apps > กดไอคอนเว็บ `</>` เพื่อคัดลอกค่า `firebaseConfig`
-6. เปิดไฟล์ `.env` ในโปรเจกต์ แล้วนำค่า Config มาใส่:
-   ```env
-   VITE_FIREBASE_API_KEY=AIzaSy...
-   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your-project
-   VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
-   VITE_FIREBASE_MESSAGING_SENDER_ID=123456...
-   VITE_FIREBASE_APP_ID=1:123456...
-   ```
-
----
-
-### ขั้นตอนที่ 2: นำโค้ดขึ้น GitHub
-1. เปิด Terminal ในโฟลเดอร์นี้ แล้วสั่ง:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: Monthly Test Result Portal"
-   ```
-2. สร้าง Repository ใหม่บน GitHub ของคุณ (ตั้งชื่อเช่น `monthly-test-portal`)
-3. เชื่อมต่อและ Push โค้ดขึ้น GitHub:
-   ```bash
-   git remote add origin https://github.com/<your-username>/monthly-test-portal.git
-   git branch -M main
-   git push -u origin main
-   ```
-
----
-
-### ขั้นตอนที่ 3: Deploy ขึ้น Netlify
-1. เข้าสู่ระบบ [Netlify](https://app.netlify.com/)
-2. กด **Add new site** > **Import an existing project** > เลือก **GitHub**
-3. เลือก Repository `monthly-test-portal`
-4. Netlify จะตรวจจับไฟล์ `netlify.toml` ให้อัตโนมัติ:
-   - **Build command**: `npm run build`
-   - **Publish directory**: `dist`
-5. ไปที่ **Site configuration** > **Environment variables** > เพิ่มค่าตัวแปร `VITE_FIREBASE_*` ทั้ง 6 ตัวจากขั้นตอนที่ 1
-6. กด **Deploy site**
-
----
-
-### ขั้นตอนที่ 4: เพิ่ม Domain บน Firebase Authorized Domains
-เมื่อได้ URL จาก Netlify แล้ว (เช่น `https://monthly-test-portal.netlify.app`):
-1. กลับไปที่ **Firebase Console** > **Authentication** > แท็บ **Settings**
-2. เลื่อนลงมาที่หัวข้อ **Authorized domains**
-3. กด **Add domain** แล้วใส่ชื่อโดเมนของ Netlify ลงไป เพื่ออนุญาตให้ระบบเข้าสู่ระบบได้จริง
+<div align="center">
+  <sub>Developed with precision and passion for modern quality assurance workflows.</sub>
+</div>
