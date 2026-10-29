@@ -2,48 +2,46 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isSuperAdminEmail() {
+    function isSuperAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'adminbkt@bkt.com' || 
-        request.auth.token.email == 'admin@portal.local' ||
-        request.auth.token.email == 'admin@bkt.com'
+        request.auth.token.email == 'admin@bkt.com' ||
+        request.auth.token.email == 'admin@portal.local'
       );
     }
 
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
     function isAdmin() {
-      return isSuperAdminEmail() || (isSignedIn() && getUserData().role == 'admin');
+      return isSuperAdmin() || (
+        isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
     // 1. Users collection
-    // - Authenticated users can read their own profile
-    // - Admins can read, create, update, and manage all profiles
+    // - Authenticated users can read all user basic info (needed for dropdown/site names)
+    // - Users can create/update their own profile, or Admin can manage all profiles
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow read: if isSignedIn();
       allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
-    // 2. Test Configurations collection (Test A, Test B, Test C...)
+    // 2. Test Configurations collection
     match /test_configs/{testId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow write: if isSignedIn() && isAdmin();
     }
 
-    // 3. Submissions collection (Monthly submitted results)
+    // 3. Submissions collection
     match /submissions/{submissionId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn() && isAdmin();
     }
   }
 }

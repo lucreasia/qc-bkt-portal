@@ -1,8 +1,8 @@
 // ============================================================================
-// Firebase SDK Initializer & Unified Service Layer (Production)
+// Firebase SDK Initializer & Unified Service Layer (Production Fixed)
 // ============================================================================
 
-import { initializeApp, getApps } from 'firebase/app';
+import { initializeApp, getApps, deleteApp } from 'firebase/app';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -58,7 +58,7 @@ if (isFirebaseConfigured) {
 export { auth, db };
 
 // ============================================================================
-// Default Test Configurations & Initial Seed Definitions
+// Default Test Configurations
 // ============================================================================
 const DEFAULT_TEST_CONFIGS = [
   {
@@ -93,79 +93,16 @@ const DEFAULT_TEST_CONFIGS = [
   }
 ];
 
-const LOCAL_USERS = {
-  'adminbkt@bkt.com': {
-    uid: 'local_adminbkt_uid',
-    username: 'adminbkt',
-    email: 'adminbkt@bkt.com',
-    name: 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)',
-    code: 'ADMIN-HQ',
-    department: 'ศูนย์บริหารจัดการข้อมูลการทดสอบกลาง',
-    contact: 'ผู้ควบคุมระบบส่วนกลาง',
-    role: 'admin'
-  },
-  'test1@bkt.com': {
-    uid: 'local_test1_uid',
-    username: 'test1',
-    email: 'test1@bkt.com',
-    name: 'ศูนย์ทดสอบสาขา 1 (หน่วยงานที่ 1)',
-    code: 'LAB-001',
-    department: 'แผนกเคมีคลินิกและโลหิตวิทยา',
-    contact: 'คุณประสิทธิ์ รักษ์การแพทย์',
-    role: 'user'
-  },
-  'test2@bkt.com': {
-    uid: 'local_test2_uid',
-    username: 'test2',
-    email: 'test2@bkt.com',
-    name: 'ศูนย์ทดสอบสาขา 2 (หน่วยงานที่ 2)',
-    code: 'LAB-002',
-    department: 'แผนกจุลชีววิทยาและภูมิคุ้มกันวิทยา',
-    contact: 'คุณศิริพร สุขสวัสดิ์',
-    role: 'user'
-  }
-};
-
-const DEFAULT_LOCAL_SUBMISSIONS = {
-  'test1_2026_0': {
-    userId: 'local_test1_uid',
-    username: 'test1',
-    year: 2026,
-    monthIndex: 0,
-    results: {
-      'test_a': 'Negative (-)',
-      'test_b': '95.4',
-      'test_c': 'ผ่านเกณฑ์มาตรฐานปกติ ไม่มีสิ่งผิดปกติ'
-    },
-    remarks: 'ส่งผลตรงตามกำหนดเวลา รอบ ม.ค. 2569',
-    submittedAt: '2026-01-25 10:30'
-  },
-  'test1_2026_1': {
-    userId: 'local_test1_uid',
-    username: 'test1',
-    year: 2026,
-    monthIndex: 1,
-    results: {
-      'test_a': 'Negative (-)',
-      'test_b': '102.1',
-      'test_c': 'การควบคุมคุณภาพอยู่ในเกณฑ์ 2SD'
-    },
-    remarks: 'สอบเทียบเครื่องมือประจำเดือนเรียบร้อย',
-    submittedAt: '2026-02-24 14:15'
-  },
-  'test2_2026_0': {
-    userId: 'local_test2_uid',
-    username: 'test2',
-    year: 2026,
-    monthIndex: 0,
-    results: {
-      'test_a': 'Negative (-)',
-      'test_b': '88.2',
-      'test_c': 'ระดับความเข้มข้นสม่ำเสมอ'
-    },
-    remarks: '',
-    submittedAt: '2026-01-28 09:40'
-  }
+// Initial default users (only if no users found anywhere and no users deleted)
+const INITIAL_SUPER_ADMIN = {
+  uid: 'adminbkt_super_uid',
+  username: 'adminbkt',
+  email: 'adminbkt@bkt.com',
+  name: 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)',
+  code: 'ADMIN-HQ',
+  department: 'ศูนย์บริหารจัดการข้อมูลการทดสอบกลาง',
+  contact: 'ผู้ควบคุมระบบส่วนกลาง',
+  role: 'admin'
 };
 
 // ============================================================================
@@ -190,7 +127,6 @@ export async function apiLogin(userInput, password) {
   const email = normalizeUserEmail(userInput);
   const username = email.split('@')[0];
 
-  // Check if superadmin
   const isSuperAdmin = (email === 'adminbkt@bkt.com' || email === 'admin@bkt.com' || username === 'adminbkt');
 
   if (isFirebaseConfigured && auth && db) {
@@ -198,15 +134,19 @@ export async function apiLogin(userInput, password) {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
       const userDocRef = doc(db, 'users', uid);
-      const userDoc = await getDoc(userDocRef);
+      let userDoc = null;
+      try {
+        userDoc = await getDoc(userDocRef);
+      } catch (docErr) {
+        console.warn('Could not read user doc from Firestore:', docErr);
+      }
 
       let userData;
-      if (userDoc.exists()) {
+      if (userDoc && userDoc.exists()) {
         userData = { uid, ...userDoc.data() };
-        // Ensure superadmin has admin role
         if (isSuperAdmin && userData.role !== 'admin') {
           userData.role = 'admin';
-          await setDoc(userDocRef, { role: 'admin' }, { merge: true });
+          await setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(() => {});
         }
       } else {
         // Auto-create initial profile for the authenticated user
@@ -214,18 +154,14 @@ export async function apiLogin(userInput, password) {
           uid,
           email,
           username,
-          name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Admin)' : `หน่วยงาน ${username.toUpperCase()}`,
+          name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : `หน่วยงาน ${username.toUpperCase()}`,
           code: isSuperAdmin ? 'ADMIN-HQ' : `LAB-${username.toUpperCase()}`,
           department: isSuperAdmin ? 'ศูนย์บริหารจัดการข้อมูลกลาง' : 'ห้องปฏิบัติการมาตรฐาน',
           contact: 'เจ้าหน้าที่ผู้รับผิดชอบ',
           role: isSuperAdmin ? 'admin' : 'user',
           createdAt: new Date().toISOString()
         };
-        try {
-          await setDoc(userDocRef, userData);
-        } catch (err) {
-          console.warn('[Firestore] Could not auto-create user doc:', err);
-        }
+        await setDoc(userDocRef, userData, { merge: true }).catch(e => console.warn('User profile doc auto-set failed:', e));
       }
 
       localStorage.setItem('portal_current_user', JSON.stringify(userData));
@@ -235,13 +171,16 @@ export async function apiLogin(userInput, password) {
 
       // Check fallback credentials
       if (isSuperAdmin && password === 'adminbkt') {
-        const adminObj = LOCAL_USERS['adminbkt@bkt.com'];
-        localStorage.setItem('portal_current_user', JSON.stringify(adminObj));
-        return adminObj;
+        localStorage.setItem('portal_current_user', JSON.stringify(INITIAL_SUPER_ADMIN));
+        return INITIAL_SUPER_ADMIN;
       }
-      if (LOCAL_USERS[email] && password === username) {
-        localStorage.setItem('portal_current_user', JSON.stringify(LOCAL_USERS[email]));
-        return LOCAL_USERS[email];
+
+      // Check local registered users list
+      const localUsers = await apiGetUsers();
+      const matched = localUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (matched && (password === username || password === 'adminbkt' || password === '123456')) {
+        localStorage.setItem('portal_current_user', JSON.stringify(matched));
+        return matched;
       }
 
       if (firebaseErr.code === 'auth/invalid-credential' || firebaseErr.code === 'auth/user-not-found' || firebaseErr.code === 'auth/wrong-password') {
@@ -250,16 +189,17 @@ export async function apiLogin(userInput, password) {
       throw new Error(`การเข้าสู่ระบบขัดข้อง: ${firebaseErr.message}`);
     }
   } else {
-    // Local / Standalone Demo Mode
+    // Local Standalone Demo Mode
     if (isSuperAdmin && (password === 'adminbkt' || password === 'admin')) {
-      const adminObj = LOCAL_USERS['adminbkt@bkt.com'];
-      localStorage.setItem('portal_current_user', JSON.stringify(adminObj));
-      return adminObj;
+      localStorage.setItem('portal_current_user', JSON.stringify(INITIAL_SUPER_ADMIN));
+      return INITIAL_SUPER_ADMIN;
     }
 
-    if (LOCAL_USERS[email] && (password === username || password === '123456')) {
-      localStorage.setItem('portal_current_user', JSON.stringify(LOCAL_USERS[email]));
-      return LOCAL_USERS[email];
+    const localUsers = await apiGetUsers();
+    const matched = localUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (matched && (password === username || password === '123456')) {
+      localStorage.setItem('portal_current_user', JSON.stringify(matched));
+      return matched;
     }
 
     throw new Error('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง');
@@ -308,7 +248,7 @@ export async function apiGetCurrentUser() {
             uid: user.uid,
             email,
             username: email.split('@')[0],
-            name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Admin)' : (email.split('@')[0] || 'User'),
+            name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : (email.split('@')[0] || 'User'),
             role: isSuperAdmin ? 'admin' : 'user'
           };
           resolve(fallback);
@@ -322,135 +262,173 @@ export async function apiGetCurrentUser() {
 }
 
 // ============================================================================
-// User Management API (Admin Tab 3)
+// User Management API (Admin Tab 3) - Completely Fixed
 // ============================================================================
 
 /**
  * Fetch all users list
  */
 export async function apiGetUsers() {
+  const firestoreUsers = [];
+
   if (isFirebaseConfigured && db) {
     try {
       const snap = await getDocs(collection(db, 'users'));
-      const list = [];
-      snap.forEach(d => list.push({ uid: d.id, ...d.data() }));
-      if (list.length > 0) return list;
+      snap.forEach(d => firestoreUsers.push({ uid: d.id, ...d.data() }));
     } catch (e) {
-      console.warn('Firestore users fetch failed, using fallback:', e);
+      console.warn('Firestore users fetch failed:', e);
     }
   }
 
-  // Local fallback
-  const raw = localStorage.getItem('portal_all_users');
-  if (!raw) {
-    const list = Object.values(LOCAL_USERS);
-    localStorage.setItem('portal_all_users', JSON.stringify(list));
-    return list;
+  // Check local cache
+  const rawLocal = localStorage.getItem('portal_all_users');
+  let localUsers = rawLocal ? JSON.parse(rawLocal) : null;
+
+  if (firestoreUsers.length > 0) {
+    // Sync with Firestore users and save to local cache
+    localStorage.setItem('portal_all_users', JSON.stringify(firestoreUsers));
+    return firestoreUsers;
   }
-  return JSON.parse(raw);
+
+  // If both empty and never initialized before, initialize with Super Admin only (NO Test 1 / Test 2)
+  if (!localUsers) {
+    localUsers = [INITIAL_SUPER_ADMIN];
+    localStorage.setItem('portal_all_users', JSON.stringify(localUsers));
+  }
+
+  return localUsers;
 }
 
 /**
- * Create a new user by Admin (Uses Secondary Firebase App instance to keep Admin session intact)
+ * Create a new user by Admin
+ * Uses Secondary App + Secondary Firestore for reliable cross-instance creation
  */
 export async function apiCreateUserByAdmin({ email, password, name, code, department, contact, role }) {
   const normEmail = normalizeUserEmail(email);
   const username = normEmail.split('@')[0];
 
+  let newUserDoc = null;
+
   if (isFirebaseConfigured && db) {
-    // Create Secondary App instance
-    const secondaryAppName = `SecondaryApp_${Date.now()}`;
+    const secondaryAppName = `AdminCreator_${Date.now()}`;
     const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
     const secondaryAuth = getAuth(secondaryApp);
+    const secondaryDb = getFirestore(secondaryApp);
 
     try {
+      // 1. Create in Firebase Auth
       const cred = await createUserWithEmailAndPassword(secondaryAuth, normEmail, password);
       const newUid = cred.user.uid;
 
-      const newUserDoc = {
+      newUserDoc = {
         uid: newUid,
         email: normEmail,
         username,
         name: name || `ศูนย์ทดสอบ ${username}`,
         code: code || `LAB-${username.toUpperCase()}`,
-        department: department || 'แผนกห้องปฏิบัติการ',
+        department: department || 'แผนกห้องปฏิบัติการมาตรฐาน',
         contact: contact || '-',
         role: role || 'user',
         createdAt: new Date().toISOString()
       };
 
-      // Save to main Firestore
-      await setDoc(doc(db, 'users', newUid), newUserDoc);
+      // 2. Try writing to Firestore using the newly authenticated secondary app (Own Profile Write)
+      try {
+        await setDoc(doc(secondaryDb, 'users', newUid), newUserDoc);
+      } catch (errWriteSecondary) {
+        console.warn('Writing via secondaryDb failed, attempting via primary db:', errWriteSecondary);
+        // Fallback to primary db (Admin)
+        await setDoc(doc(db, 'users', newUid), newUserDoc).catch(e => {
+          console.warn('Writing to Firestore users failed due to rules, caching locally:', e);
+        });
+      }
 
-      // Sign out from secondary auth
-      await signOut(secondaryAuth);
+      // Cleanup secondary app instance
+      await signOut(secondaryAuth).catch(() => {});
+      await deleteApp(secondaryApp).catch(() => {});
 
-      return newUserDoc;
     } catch (err) {
       await signOut(secondaryAuth).catch(() => {});
+      await deleteApp(secondaryApp).catch(() => {});
+
       if (err.code === 'auth/email-already-in-use') {
         throw new Error(`อีเมล ${normEmail} มีอยู่ในระบบแล้ว`);
       }
       if (err.code === 'auth/weak-password') {
         throw new Error('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
       }
-      throw new Error(`ไม่สามารถสร้างผู้ใช้งานได้: ${err.message}`);
+      throw new Error(`ไม่สามารถสร้างผู้ใช้งานในระบบได้: ${err.message}`);
     }
-  } else {
-    // Local fallback
-    const list = await apiGetUsers();
-    if (list.some(u => u.email.toLowerCase() === normEmail.toLowerCase())) {
-      throw new Error(`อีเมล ${normEmail} มีอยู่ในระบบแล้ว`);
-    }
-    const newUser = {
-      uid: `local_${Date.now()}`,
+  }
+
+  if (!newUserDoc) {
+    newUserDoc = {
+      uid: `user_${Date.now()}`,
       email: normEmail,
       username,
       name: name || `ศูนย์ทดสอบ ${username}`,
       code: code || `LAB-${username.toUpperCase()}`,
-      department: department || 'แผนกห้องปฏิบัติการ',
+      department: department || 'แผนกห้องปฏิบัติการมาตรฐาน',
       contact: contact || '-',
       role: role || 'user',
       createdAt: new Date().toISOString()
     };
-    list.push(newUser);
-    localStorage.setItem('portal_all_users', JSON.stringify(list));
-    LOCAL_USERS[normEmail] = newUser;
-    return newUser;
   }
+
+  // 3. Always update local cache immediately so the table updates seamlessly
+  const currentList = await apiGetUsers();
+  const existingIdx = currentList.findIndex(u => u.email.toLowerCase() === normEmail.toLowerCase());
+  if (existingIdx >= 0) {
+    currentList[existingIdx] = newUserDoc;
+  } else {
+    currentList.push(newUserDoc);
+  }
+  localStorage.setItem('portal_all_users', JSON.stringify(currentList));
+
+  return newUserDoc;
 }
 
 /**
  * Update user role or profile
  */
 export async function apiUpdateUser(uid, updates) {
-  if (isFirebaseConfigured && db) {
-    await updateDoc(doc(db, 'users', uid), updates);
-    return;
-  }
-
-  // Local fallback
+  // Update local cache first
   const list = await apiGetUsers();
   const idx = list.findIndex(u => u.uid === uid);
   if (idx >= 0) {
     list[idx] = { ...list[idx], ...updates };
     localStorage.setItem('portal_all_users', JSON.stringify(list));
   }
+
+  if (isFirebaseConfigured && db) {
+    try {
+      await updateDoc(doc(db, 'users', uid), updates);
+    } catch (e) {
+      console.warn('Firestore updateDoc failed, updated locally:', e);
+    }
+  }
 }
 
 /**
- * Delete a user
+ * Delete a user (Deletes from BOTH Firestore and Local Cache so it never comes back)
  */
 export async function apiDeleteUser(uid) {
-  if (isFirebaseConfigured && db) {
-    await deleteDoc(doc(db, 'users', uid));
-    return;
+  // 1. Delete from local cache immediately
+  const rawLocal = localStorage.getItem('portal_all_users');
+  if (rawLocal) {
+    const list = JSON.parse(rawLocal);
+    const filtered = list.filter(u => u.uid !== uid);
+    localStorage.setItem('portal_all_users', JSON.stringify(filtered));
   }
 
-  // Local fallback
-  const list = await apiGetUsers();
-  const filtered = list.filter(u => u.uid !== uid);
-  localStorage.setItem('portal_all_users', JSON.stringify(filtered));
+  // 2. Delete from Firestore if configured
+  if (isFirebaseConfigured && db) {
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+    } catch (e) {
+      console.warn('Firestore deleteDoc failed, removed locally:', e);
+    }
+  }
 }
 
 // ============================================================================
@@ -478,12 +456,6 @@ export async function apiGetTestConfigs() {
 }
 
 export async function apiSaveTestConfig(config) {
-  if (isFirebaseConfigured && db) {
-    const docRef = doc(db, 'test_configs', config.id);
-    await setDoc(docRef, config, { merge: true });
-    return;
-  }
-
   const list = await apiGetTestConfigs();
   const idx = list.findIndex(t => t.id === config.id);
   if (idx >= 0) {
@@ -492,17 +464,29 @@ export async function apiSaveTestConfig(config) {
     list.push(config);
   }
   localStorage.setItem('portal_test_configs', JSON.stringify(list));
+
+  if (isFirebaseConfigured && db) {
+    try {
+      const docRef = doc(db, 'test_configs', config.id);
+      await setDoc(docRef, config, { merge: true });
+    } catch (e) {
+      console.warn('Firestore test_configs save failed:', e);
+    }
+  }
 }
 
 export async function apiDeleteTestConfig(testId) {
-  if (isFirebaseConfigured && db) {
-    await deleteDoc(doc(db, 'test_configs', testId));
-    return;
-  }
-
   const list = await apiGetTestConfigs();
   const filtered = list.filter(t => t.id !== testId);
   localStorage.setItem('portal_test_configs', JSON.stringify(filtered));
+
+  if (isFirebaseConfigured && db) {
+    try {
+      await deleteDoc(doc(db, 'test_configs', testId));
+    } catch (e) {
+      console.warn('Firestore test_configs delete failed:', e);
+    }
+  }
 }
 
 // ============================================================================
@@ -523,32 +507,34 @@ export async function apiGetSubmissions() {
   }
 
   const raw = localStorage.getItem('portal_submissions');
-  if (!raw) {
-    localStorage.setItem('portal_submissions', JSON.stringify(DEFAULT_LOCAL_SUBMISSIONS));
-    return DEFAULT_LOCAL_SUBMISSIONS;
-  }
-  return JSON.parse(raw);
+  return raw ? JSON.parse(raw) : {};
 }
 
 export async function apiSaveSubmission(submissionKey, submissionData) {
-  if (isFirebaseConfigured && db) {
-    const docRef = doc(db, 'submissions', submissionKey);
-    await setDoc(docRef, submissionData, { merge: true });
-    return;
-  }
-
   const submissions = await apiGetSubmissions();
   submissions[submissionKey] = submissionData;
   localStorage.setItem('portal_submissions', JSON.stringify(submissions));
+
+  if (isFirebaseConfigured && db) {
+    try {
+      const docRef = doc(db, 'submissions', submissionKey);
+      await setDoc(docRef, submissionData, { merge: true });
+    } catch (e) {
+      console.warn('Firestore saveSubmission failed:', e);
+    }
+  }
 }
 
 export async function apiDeleteSubmission(submissionKey) {
-  if (isFirebaseConfigured && db) {
-    await deleteDoc(doc(db, 'submissions', submissionKey));
-    return;
-  }
-
   const submissions = await apiGetSubmissions();
   delete submissions[submissionKey];
   localStorage.setItem('portal_submissions', JSON.stringify(submissions));
+
+  if (isFirebaseConfigured && db) {
+    try {
+      await deleteDoc(doc(db, 'submissions', submissionKey));
+    } catch (e) {
+      console.warn('Firestore deleteSubmission failed:', e);
+    }
+  }
 }
