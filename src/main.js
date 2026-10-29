@@ -18,8 +18,20 @@ import {
   apiGetSubmissions,
   apiSaveSubmission,
   apiDeleteSubmission,
+  apiInvalidateCache,
   isFirebaseConfigured
 } from './firebase.js';
+
+// Safe HTML sanitizer to prevent Stored XSS
+export function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 const MONTH_NAMES = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -172,7 +184,7 @@ async function renderUserDashboard() {
   const selectedYear = parseInt(yearSelect.value) || 2026;
   const submissions = await apiGetSubmissions();
   const testConfigs = await apiGetTestConfigs();
-  cachedMonthlyLots = await apiGetMonthlyLots();
+  cachedMonthlyLots = await apiGetMonthlyLots(false);
 
   const today = new Date();
   const realYear = today.getFullYear();
@@ -371,7 +383,7 @@ async function openEntryModal(username, year, monthIndex, isReadOnly = false) {
   const existing = submissions[monthKey];
   currentEditingSubmission = existing;
   currentModalTestConfigs = await apiGetTestConfigs();
-  cachedMonthlyLots = await apiGetMonthlyLots();
+  cachedMonthlyLots = await apiGetMonthlyLots(currentUser?.role === 'admin');
   const lotInfo = cachedMonthlyLots[lotKey];
 
   document.getElementById('entry-month-key').value = monthKey;
@@ -643,31 +655,31 @@ async function initAdminView() {
   }
 
   await loadAdminUsersDropdown();
-  renderAdminResultsTable();
-  renderAdminTestConfigsList();
-  renderAdminLotAnswersConfig();
-  renderAdminUsersTable();
+  renderSubmissionMatrix();
 }
 
 async function loadAdminUsersDropdown() {
   cachedUsersList = await apiGetUsers();
   const userSelect = document.getElementById('admin-filter-user');
+  if (!userSelect) return;
   userSelect.innerHTML = '<option value="ALL">-- ทุกหน่วยงานที่ลงทะเบียน --</option>';
 
   cachedUsersList.forEach(u => {
     const opt = document.createElement('option');
     opt.value = u.username || u.email?.split('@')[0];
-    opt.textContent = `${u.name} (${u.code || u.username})`;
+    opt.textContent = `${esc(u.name)} (${esc(u.code || u.username)})`;
     userSelect.appendChild(opt);
   });
 }
 
 function switchAdminTab(tabName) {
+  const matrixTab = document.getElementById('admin-tab-matrix');
   const resultsTab = document.getElementById('admin-tab-results');
   const configTab = document.getElementById('admin-tab-config');
   const lotsTab = document.getElementById('admin-tab-lots');
   const usersTab = document.getElementById('admin-tab-users');
 
+  const matrixBtn = document.getElementById('admin-tab-matrix-btn');
   const resultsBtn = document.getElementById('admin-tab-results-btn');
   const configBtn = document.getElementById('admin-tab-config-btn');
   const lotsBtn = document.getElementById('admin-tab-lots-btn');
@@ -676,31 +688,37 @@ function switchAdminTab(tabName) {
   const activeClass = 'pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition whitespace-nowrap';
   const inactiveClass = 'pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition whitespace-nowrap';
 
-  resultsTab.classList.add('hidden');
-  configTab.classList.add('hidden');
-  lotsTab.classList.add('hidden');
-  usersTab.classList.add('hidden');
+  matrixTab?.classList.add('hidden');
+  resultsTab?.classList.add('hidden');
+  configTab?.classList.add('hidden');
+  lotsTab?.classList.add('hidden');
+  usersTab?.classList.add('hidden');
 
-  resultsBtn.className = inactiveClass;
-  configBtn.className = inactiveClass;
-  lotsBtn.className = inactiveClass;
-  usersBtn.className = inactiveClass;
+  if (matrixBtn) matrixBtn.className = inactiveClass;
+  if (resultsBtn) resultsBtn.className = inactiveClass;
+  if (configBtn) configBtn.className = inactiveClass;
+  if (lotsBtn) lotsBtn.className = inactiveClass;
+  if (usersBtn) usersBtn.className = inactiveClass;
 
-  if (tabName === 'results') {
-    resultsTab.classList.remove('hidden');
-    resultsBtn.className = activeClass;
+  if (tabName === 'matrix') {
+    matrixTab?.classList.remove('hidden');
+    if (matrixBtn) matrixBtn.className = activeClass;
+    renderSubmissionMatrix();
+  } else if (tabName === 'results') {
+    resultsTab?.classList.remove('hidden');
+    if (resultsBtn) resultsBtn.className = activeClass;
     renderAdminResultsTable();
   } else if (tabName === 'config') {
-    configTab.classList.remove('hidden');
-    configBtn.className = activeClass;
+    configTab?.classList.remove('hidden');
+    if (configBtn) configBtn.className = activeClass;
     renderAdminTestConfigsList();
   } else if (tabName === 'lots') {
-    lotsTab.classList.remove('hidden');
-    lotsBtn.className = activeClass;
+    lotsTab?.classList.remove('hidden');
+    if (lotsBtn) lotsBtn.className = activeClass;
     renderAdminLotAnswersConfig();
   } else {
-    usersTab.classList.remove('hidden');
-    usersBtn.className = activeClass;
+    usersTab?.classList.remove('hidden');
+    if (usersBtn) usersBtn.className = activeClass;
     renderAdminUsersTable();
   }
 
@@ -710,17 +728,183 @@ function switchAdminTab(tabName) {
 }
 
 // ============================================================================
-// Admin Results & Comparison Table (With Answer Key Range Check)
+// TAB 0: Submission Progress Matrix / Mini-Dashboard
+// ============================================================================
+async function renderSubmissionMatrix() {
+  const tbody = document.getElementById('matrix-tbody');
+  if (!tbody) return;
+
+  const yearSelect = document.getElementById('matrix-filter-year');
+  const statusFilter = document.getElementById('matrix-filter-status');
+  const selectedYear = parseInt(yearSelect?.value || new Date().getFullYear(), 10);
+  const filterVal = statusFilter?.value || 'ALL';
+
+  const users = await apiGetUsers();
+  const submissions = await apiGetSubmissions();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthIdx = now.getMonth();
+
+  // Filter out admin accounts from matrix; display lab users only
+  const labUsers = users.filter(u => u.role !== 'admin');
+  const totalLabsEl = document.getElementById('stat-total-labs');
+  if (totalLabsEl) totalLabsEl.textContent = labUsers.length;
+
+  // Calculate current month statistics
+  let currentMonthSubmitted = 0;
+  let yearTotalSubmissions = 0;
+
+  labUsers.forEach(u => {
+    const keyThisMonth = `${u.username}_${selectedYear}_${currentMonthIdx}`;
+    if (submissions[keyThisMonth]) {
+      currentMonthSubmitted++;
+    }
+    for (let m = 0; m < 12; m++) {
+      if (submissions[`${u.username}_${selectedYear}_${m}`]) {
+        yearTotalSubmissions++;
+      }
+    }
+  });
+
+  const monthLabel = `${MONTH_NAMES[currentMonthIdx]} ${currentYear + 543}`;
+  const statMonthLabelEl = document.getElementById('stat-current-month-label');
+  if (statMonthLabelEl) {
+    statMonthLabelEl.textContent = `ประจำเดือน ${monthLabel}`;
+  }
+
+  const submittedEl = document.getElementById('stat-month-submitted');
+  const pendingEl = document.getElementById('stat-month-pending');
+  const rateEl = document.getElementById('stat-month-rate');
+  const totalSubmissionsEl = document.getElementById('stat-year-total-submissions');
+
+  if (submittedEl) submittedEl.textContent = currentMonthSubmitted;
+  if (pendingEl) pendingEl.textContent = Math.max(0, labUsers.length - currentMonthSubmitted);
+  if (rateEl) {
+    const rate = labUsers.length > 0 ? Math.round((currentMonthSubmitted / labUsers.length) * 100) : 0;
+    rateEl.textContent = `${rate}%`;
+  }
+  if (totalSubmissionsEl) totalSubmissionsEl.textContent = yearTotalSubmissions;
+
+  // Filter rows by status
+  let displayUsers = labUsers;
+  if (filterVal === 'PENDING_THIS_MONTH') {
+    displayUsers = labUsers.filter(u => !submissions[`${u.username}_${selectedYear}_${currentMonthIdx}`]);
+  } else if (filterVal === 'SUBMITTED_THIS_MONTH') {
+    displayUsers = labUsers.filter(u => Boolean(submissions[`${u.username}_${selectedYear}_${currentMonthIdx}`]));
+  }
+
+  tbody.innerHTML = '';
+  if (displayUsers.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td colspan="14" class="px-6 py-10 text-center text-slate-400">
+        <i data-lucide="info" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+        <div>ไม่พบข้อมูลศูนย์ทดสอบตามเงื่อนไขที่เลือก</div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+    if (window.lucide) window.lucide.createIcons({ root: tr });
+    return;
+  }
+
+  displayUsers.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-slate-50/70 transition';
+
+    let submittedCount = 0;
+    let monthCellsHtml = '';
+
+    for (let m = 0; m < 12; m++) {
+      const monthKey = `${u.username}_${selectedYear}_${m}`;
+      const sub = submissions[monthKey];
+      const isPast = (selectedYear < currentYear) || (selectedYear === currentYear && m < currentMonthIdx);
+      const isCurrent = (selectedYear === currentYear && m === currentMonthIdx);
+
+      if (sub) {
+        submittedCount++;
+        monthCellsHtml += `
+          <td class="px-2 py-3 text-center">
+            <button type="button" data-view-user="${esc(u.username)}" data-view-year="${selectedYear}" data-view-month="${m}" class="matrix-cell-btn inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:scale-105 border border-emerald-200 transition shadow-xs" title="คลิกเพื่อดูผลที่ส่ง (${esc(sub.submittedAt || '')})">
+              <i data-lucide="check" class="w-4 h-4 text-emerald-600 stroke-[2.5]"></i>
+            </button>
+          </td>
+        `;
+      } else if (isCurrent) {
+        monthCellsHtml += `
+          <td class="px-2 py-3 text-center">
+            <span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse" title="เดือนปัจจุบัน - รอส่งผล">
+              รอส่ง
+            </span>
+          </td>
+        `;
+      } else if (isPast) {
+        monthCellsHtml += `
+          <td class="px-2 py-3 text-center">
+            <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-400 text-[11px]" title="ไม่ได้รับการรายงาน">
+              -
+            </span>
+          </td>
+        `;
+      } else {
+        monthCellsHtml += `
+          <td class="px-2 py-3 text-center text-slate-300 text-xs">
+            -
+          </td>
+        `;
+      }
+    }
+
+    const progressPct = Math.round((submittedCount / 12) * 100);
+
+    tr.innerHTML = `
+      <td class="px-4 py-3 sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-100">
+        <div class="font-bold text-slate-800">${esc(u.name)}</div>
+        <div class="text-[11px] text-slate-400 font-mono flex items-center gap-1.5">
+          <span>${esc(u.code || u.username)}</span>
+          ${u.contact ? `<span class="text-slate-300">•</span><span class="truncate max-w-[120px]">${esc(u.contact)}</span>` : ''}
+        </div>
+      </td>
+      ${monthCellsHtml}
+      <td class="px-3 py-3 text-center">
+        <div class="flex items-center justify-center gap-1.5">
+          <span class="font-mono font-bold text-slate-700">${submittedCount}/12</span>
+          <div class="w-10 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-indigo-600 h-1.5 rounded-full" style="width: ${progressPct}%"></div>
+          </div>
+        </div>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.matrix-cell-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const target = e.currentTarget;
+      const uName = target.getAttribute('data-view-user');
+      const yr = parseInt(target.getAttribute('data-view-year'), 10);
+      const mo = parseInt(target.getAttribute('data-view-month'), 10);
+      openEntryModal(uName, yr, mo, true);
+    });
+  });
+
+  if (window.lucide) {
+    window.lucide.createIcons({ root: tbody });
+  }
+}
+
+// ============================================================================
+// TAB 1: Admin Results & Comparison Table (With Answer Key Range Check)
 // ============================================================================
 async function renderAdminResultsTable() {
-  const userFilter = document.getElementById('admin-filter-user').value;
-  const yearFilter = parseInt(document.getElementById('admin-filter-year').value) || 2026;
-  const monthFilter = document.getElementById('admin-filter-month').value;
+  const userFilter = document.getElementById('admin-filter-user')?.value || 'ALL';
+  const yearFilter = parseInt(document.getElementById('admin-filter-year')?.value) || 2026;
+  const monthFilter = document.getElementById('admin-filter-month')?.value || 'ALL';
 
   const submissions = await apiGetSubmissions();
   const testConfigs = await apiGetTestConfigs();
   const users = await apiGetUsers();
-  cachedMonthlyLots = await apiGetMonthlyLots();
+  cachedMonthlyLots = await apiGetMonthlyLots(true);
 
   const thead = document.getElementById('admin-table-header');
   thead.innerHTML = `
@@ -891,7 +1075,7 @@ async function renderAdminLotAnswersConfig() {
   const y = parseInt(document.getElementById('lot-select-year').value) || 2026;
   const lotKey = `${y}_${m}`;
 
-  cachedMonthlyLots = await apiGetMonthlyLots();
+  cachedMonthlyLots = await apiGetMonthlyLots(true);
   const currentLot = cachedMonthlyLots[lotKey] || {};
   const testConfigs = await apiGetTestConfigs();
 
@@ -1241,15 +1425,15 @@ async function renderAdminUsersTable() {
 
     tr.innerHTML = `
       <td class="py-3.5 px-4 whitespace-nowrap">
-        <div class="font-bold text-slate-800 text-sm">${u.email || u.username}</div>
-        <div class="text-[11px] text-slate-400 font-mono">UID: ${u.uid?.substring(0, 10)}...</div>
+        <div class="font-bold text-slate-800 text-sm">${esc(u.email || u.username)}</div>
+        <div class="text-[11px] text-slate-400 font-mono">UID: ${esc(u.uid?.substring(0, 10))}...</div>
       </td>
       <td class="py-3.5 px-4">
-        <div class="font-semibold text-slate-800 text-xs">${u.name}</div>
-        <div class="text-[11px] text-slate-500">${u.department || '-'} • ติดต่อ: ${u.contact || '-'}</div>
+        <div class="font-semibold text-slate-800 text-xs">${esc(u.name)}</div>
+        <div class="text-[11px] text-slate-500">${esc(u.department || '-')} • ติดต่อ: ${esc(u.contact || '-')}</div>
       </td>
       <td class="py-3.5 px-4 whitespace-nowrap font-mono text-xs font-semibold text-slate-700">
-        ${u.code || '-'}
+        ${esc(u.code || '-')}
       </td>
       <td class="py-3.5 px-4 whitespace-nowrap">
         ${roleBadge}
@@ -1359,7 +1543,7 @@ async function openPdfModal(targetUser = 'ALL') {
   const targetMonth = monthFilter === 'ALL' ? (new Date().getMonth()) : parseInt(monthFilter);
 
   const lotKey = `${year}_${targetMonth}`;
-  cachedMonthlyLots = await apiGetMonthlyLots();
+  cachedMonthlyLots = await apiGetMonthlyLots(true);
   const currentLot = cachedMonthlyLots[lotKey] || {};
 
   const submissions = await apiGetSubmissions();
@@ -1497,10 +1681,20 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('test-submission-form')?.addEventListener('submit', handleSaveSubmission);
 
   // Admin Portal Navigation Tabs
+  document.getElementById('admin-tab-matrix-btn')?.addEventListener('click', () => switchAdminTab('matrix'));
   document.getElementById('admin-tab-results-btn')?.addEventListener('click', () => switchAdminTab('results'));
   document.getElementById('admin-tab-config-btn')?.addEventListener('click', () => switchAdminTab('config'));
   document.getElementById('admin-tab-lots-btn')?.addEventListener('click', () => switchAdminTab('lots'));
   document.getElementById('admin-tab-users-btn')?.addEventListener('click', () => switchAdminTab('users'));
+
+  // Dashboard Matrix filters
+  document.getElementById('matrix-filter-year')?.addEventListener('change', renderSubmissionMatrix);
+  document.getElementById('matrix-filter-status')?.addEventListener('change', renderSubmissionMatrix);
+  document.getElementById('matrix-refresh-btn')?.addEventListener('click', () => {
+    apiInvalidateCache();
+    renderSubmissionMatrix();
+    showToast('รีเฟรชข้อมูลเรียบร้อย');
+  });
 
   // Admin Results Filter events
   document.getElementById('admin-filter-user')?.addEventListener('change', renderAdminResultsTable);

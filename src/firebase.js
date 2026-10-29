@@ -265,16 +265,33 @@ export async function apiGetCurrentUser() {
   });
 }
 
+// In-Memory Fast Cache (Instant UI transitions, 0ms latency for repeat reads)
+let cacheTestConfigs = null;
+let cacheMonthlyLots = null;
+let cachePublicLots = null;
+let cacheSubmissions = null;
+let cacheUsers = null;
+
+export function apiInvalidateCache() {
+  cacheTestConfigs = null;
+  cacheMonthlyLots = null;
+  cachePublicLots = null;
+  cacheSubmissions = null;
+  cacheUsers = null;
+}
+
 // ============================================================================
 // 2. User Management API (Direct Cloud Firestore Only - Graceful Error Handling)
 // ============================================================================
-export async function apiGetUsers() {
+export async function apiGetUsers(forceRefresh = false) {
   if (!isFirebaseConfigured || !db) return [];
+  if (!forceRefresh && cacheUsers) return cacheUsers;
 
   try {
     const snap = await getDocs(collection(db, 'users'));
     const list = [];
     snap.forEach(d => list.push({ uid: d.id, ...d.data() }));
+    cacheUsers = list;
     return list;
   } catch (e) {
     console.warn('[Firestore Notice] apiGetUsers returned empty:', e);
@@ -312,6 +329,7 @@ export async function apiCreateUserByAdmin({ email, password, name, code, depart
 
     // Save directly to main Cloud Firestore
     await setDoc(doc(db, 'users', newUid), newUserDoc);
+    cacheUsers = null;
 
     await signOut(secondaryAuth).catch(() => {});
     await deleteApp(secondaryApp).catch(() => {});
@@ -334,6 +352,7 @@ export async function apiUpdateUser(uid, updates) {
   if (!isFirebaseConfigured || !db) return;
   try {
     await updateDoc(doc(db, 'users', uid), updates);
+    cacheUsers = null;
   } catch (e) {
     console.error('[Firestore Error] apiUpdateUser failed:', e);
     throw new Error('ไม่สามารถอัปเดตข้อมูลผู้ใช้งานบน Cloud Firestore ได้');
@@ -344,6 +363,7 @@ export async function apiDeleteUser(uid) {
   if (!isFirebaseConfigured || !db) return;
   try {
     await deleteDoc(doc(db, 'users', uid));
+    cacheUsers = null;
   } catch (e) {
     console.error('[Firestore Error] apiDeleteUser failed:', e);
     throw new Error('ไม่สามารถลบผู้ใช้งานบน Cloud Firestore ได้');
@@ -353,8 +373,9 @@ export async function apiDeleteUser(uid) {
 // ============================================================================
 // 3. Test Configurations API (Direct Cloud Firestore Only)
 // ============================================================================
-export async function apiGetTestConfigs() {
+export async function apiGetTestConfigs(forceRefresh = false) {
   if (!isFirebaseConfigured || !db) return DEFAULT_TEST_CONFIGS;
+  if (!forceRefresh && cacheTestConfigs) return cacheTestConfigs;
 
   try {
     const q = query(collection(db, 'test_configs'), orderBy('order', 'asc'));
@@ -367,8 +388,10 @@ export async function apiGetTestConfigs() {
       for (const item of DEFAULT_TEST_CONFIGS) {
         await setDoc(doc(db, 'test_configs', item.id), item).catch(() => {});
       }
+      cacheTestConfigs = DEFAULT_TEST_CONFIGS;
       return DEFAULT_TEST_CONFIGS;
     }
+    cacheTestConfigs = list;
     return list;
   } catch (e) {
     console.warn('[Firestore Notice] apiGetTestConfigs using default blueprint:', e);
@@ -382,6 +405,7 @@ export async function apiSaveTestConfig(config) {
   try {
     const docRef = doc(db, 'test_configs', config.id);
     await setDoc(docRef, config, { merge: true });
+    cacheTestConfigs = null;
   } catch (e) {
     console.error('[Firestore Error] apiSaveTestConfig failed:', e);
     throw new Error(`ไม่สามารถบันทึกแบบทดสอบลง Cloud Firestore: ${e.message}`);
@@ -393,6 +417,7 @@ export async function apiDeleteTestConfig(testId) {
 
   try {
     await deleteDoc(doc(db, 'test_configs', testId));
+    cacheTestConfigs = null;
   } catch (e) {
     console.error('[Firestore Error] apiDeleteTestConfig failed:', e);
     throw new Error(`ไม่สามารถลบแบบทดสอบบน Cloud Firestore: ${e.message}`);
@@ -400,20 +425,58 @@ export async function apiDeleteTestConfig(testId) {
 }
 
 // ============================================================================
-// 4. Monthly Lot & Answer Key API (Direct Cloud Firestore Only)
+// 4. Monthly Lot & Secret Answer Key API
+// Admin gets full data (with testAnswers); Users get sanitized public data
 // ============================================================================
-export async function apiGetMonthlyLots() {
+export async function apiGetMonthlyLots(isAdmin = false, forceRefresh = false) {
   if (!isFirebaseConfigured || !db) return {};
 
+  if (isAdmin) {
+    if (!forceRefresh && cacheMonthlyLots) return cacheMonthlyLots;
+    try {
+      const snap = await getDocs(collection(db, 'monthly_lots'));
+      const map = {};
+      snap.forEach(d => {
+        map[d.id] = d.data();
+      });
+      cacheMonthlyLots = map;
+      return map;
+    } catch (e) {
+      console.warn('[Firestore Notice] apiGetMonthlyLots admin returned empty:', e);
+      return {};
+    }
+  }
+
+  // Regular User: Fetch only public metadata without answers
+  if (!forceRefresh && cachePublicLots) return cachePublicLots;
   try {
-    const snap = await getDocs(collection(db, 'monthly_lots'));
-    const map = {};
-    snap.forEach(d => {
-      map[d.id] = d.data();
+    const pubSnap = await getDocs(collection(db, 'lot_public'));
+    const pubMap = {};
+    pubSnap.forEach(d => {
+      pubMap[d.id] = d.data();
     });
-    return map;
+
+    // Fallback: If lot_public is empty during migration, read monthly_lots and strip answers
+    if (Object.keys(pubMap).length === 0) {
+      const fullSnap = await getDocs(collection(db, 'monthly_lots')).catch(() => null);
+      if (fullSnap) {
+        fullSnap.forEach(d => {
+          const raw = d.data();
+          pubMap[d.id] = {
+            lotKey: d.id,
+            lotNumber: raw.lotNumber || '',
+            year: raw.year,
+            monthIndex: raw.monthIndex,
+            isOpen: raw.isOpen !== false,
+            updatedAt: raw.updatedAt || ''
+          };
+        });
+      }
+    }
+    cachePublicLots = pubMap;
+    return pubMap;
   } catch (e) {
-    console.warn('[Firestore Notice] apiGetMonthlyLots returned empty:', e);
+    console.warn('[Firestore Notice] apiGetMonthlyLots public returned empty:', e);
     return {};
   }
 }
@@ -422,8 +485,23 @@ export async function apiSaveMonthlyLot(lotKey, lotData) {
   if (!isFirebaseConfigured || !db) throw new Error('ระบบยังไม่ได้เชื่อมต่อ Firebase');
 
   try {
+    // 1. Save full data (including secret testAnswers) for Admin
     const docRef = doc(db, 'monthly_lots', lotKey);
     await setDoc(docRef, lotData, { merge: true });
+
+    // 2. Save sanitized public copy (without answers) for Users
+    const publicData = {
+      lotKey,
+      lotNumber: lotData.lotNumber || '',
+      year: lotData.year,
+      monthIndex: lotData.monthIndex,
+      isOpen: lotData.isOpen !== false,
+      updatedAt: new Date().toISOString()
+    };
+    await setDoc(doc(db, 'lot_public', lotKey), publicData, { merge: true }).catch(() => {});
+
+    cacheMonthlyLots = null;
+    cachePublicLots = null;
   } catch (e) {
     console.error('[Firestore Error] apiSaveMonthlyLot failed:', e);
     throw new Error(`ไม่สามารถบันทึก Lot ประจำเดือนลง Cloud Firestore: ${e.message}`);
@@ -433,8 +511,9 @@ export async function apiSaveMonthlyLot(lotKey, lotData) {
 // ============================================================================
 // 5. Submissions API (Direct Cloud Firestore Only)
 // ============================================================================
-export async function apiGetSubmissions() {
+export async function apiGetSubmissions(forceRefresh = false) {
   if (!isFirebaseConfigured || !db) return {};
+  if (!forceRefresh && cacheSubmissions) return cacheSubmissions;
 
   try {
     const snap = await getDocs(collection(db, 'submissions'));
@@ -442,6 +521,7 @@ export async function apiGetSubmissions() {
     snap.forEach(d => {
       map[d.id] = d.data();
     });
+    cacheSubmissions = map;
     return map;
   } catch (e) {
     console.warn('[Firestore Notice] apiGetSubmissions returned empty:', e);
@@ -455,6 +535,7 @@ export async function apiSaveSubmission(submissionKey, submissionData) {
   try {
     const docRef = doc(db, 'submissions', submissionKey);
     await setDoc(docRef, submissionData, { merge: true });
+    cacheSubmissions = null;
   } catch (e) {
     console.error('[Firestore Error] apiSaveSubmission failed:', e);
     throw new Error(`ไม่สามารถบันทึกผลการทดสอบลง Cloud Firestore: ${e.message}`);
@@ -466,6 +547,7 @@ export async function apiDeleteSubmission(submissionKey) {
 
   try {
     await deleteDoc(doc(db, 'submissions', submissionKey));
+    cacheSubmissions = null;
   } catch (e) {
     console.error('[Firestore Error] apiDeleteSubmission failed:', e);
     throw new Error(`ไม่สามารถลบผลการทดสอบบน Cloud Firestore: ${e.message}`);
