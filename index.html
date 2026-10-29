@@ -14,7 +14,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- html2pdf.js for true PDF file generation -->
+  <!-- html2pdf.js for true PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <script>
@@ -77,7 +77,7 @@
             </div>
           </div>
 
-          <!-- User Info & Logout on the LEFT SIDE (Safe from being blocked) -->
+          <!-- User Info & Logout on the LEFT SIDE -->
           <div id="nav-user-info" class="flex items-center gap-3 border-l border-slate-200 pl-4 sm:pl-6">
             <!-- Populated by main.js -->
           </div>
@@ -87,7 +87,7 @@
         <div class="hidden md:flex items-center gap-2 text-xs text-slate-400 font-medium">
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>ระบบมาตรฐานการรายงานผล</span>
+            <span>ระบบมาตรฐานการรายงานผล 2-Layer</span>
           </span>
         </div>
 
@@ -98,7 +98,7 @@
   <!-- ================= MAIN APP CONTAINER ================= -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-    <!-- Toast Notification Box on the LEFT SIDE (bottom-5 left-5) -->
+    <!-- Toast Notification Box on the LEFT SIDE -->
     <div id="toast-container" class="fixed bottom-5 left-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- ------------------------------------------------------------- -->
@@ -207,22 +207,25 @@
       </div>
 
       <!-- Month Cards Grid (12 Months) -->
-      <div id="u-months-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        <!-- Rendered by main.js with Past Month Locking -->
-      </div>
+      <div id="u-months-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
     </div>
 
     <!-- ------------------------------------------------------------- -->
-    <!-- VIEW 3: ENTRY MODAL                                           -->
+    <!-- VIEW 3: ENTRY MODAL (Dynamic Multi-Level & Multi-Machine)      -->
     <!-- ------------------------------------------------------------- -->
     <div id="modal-entry" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+      <div class="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
         
         <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div>
-            <span id="modal-mode-badge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 uppercase tracking-wider">
-              บันทึกผลการทดสอบ
-            </span>
+            <div class="flex items-center gap-2">
+              <span id="modal-mode-badge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 uppercase tracking-wider">
+                บันทึกผลการทดสอบ
+              </span>
+              <span id="modal-lot-badge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 font-mono">
+                LOT: -
+              </span>
+            </div>
             <h3 id="modal-entry-title" class="text-lg font-bold text-slate-800 mt-1">
               แบบบันทึกผลการทดสอบประจำเดือน
             </h3>
@@ -239,12 +242,12 @@
           <div class="bg-amber-50 border border-amber-200/80 rounded-xl p-3.5 flex items-start gap-3 text-xs text-amber-800">
             <i data-lucide="info" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
             <div>
-              กรุณาตรวจสอบความถูกต้องของผลการทดสอบก่อนกดยืนยันบันทึก ระบบจะลงเวลาที่บันทึกผลไว้เป็นหลักฐานอัตโนมัติ
+              กรุณาตรวจสอบความถูกต้องของผลการทดสอบก่อนกดยืนยันบันทึก ระบบรองรับการบันทึกแยกตามระดับ (Levels) และแยกตามเครื่องตรวจวัด
             </div>
           </div>
 
-          <!-- Dynamic Test Fields -->
-          <div id="dynamic-test-fields" class="space-y-5"></div>
+          <!-- Dynamic Multi-Level & Multi-Machine Test Fields Container -->
+          <div id="dynamic-test-fields" class="space-y-6"></div>
 
           <!-- Remarks -->
           <div class="pt-2 border-t border-slate-100">
@@ -274,7 +277,7 @@
     </div>
 
     <!-- ------------------------------------------------------------- -->
-    <!-- VIEW 4: ADMIN PORTAL (ระบบบริหารจัดการสำหรับผู้ดูแลระบบ)        -->
+    <!-- VIEW 4: ADMIN PORTAL (ระบบบริหารจัดการ 2 ชั้น)                 -->
     <!-- ------------------------------------------------------------- -->
     <div id="view-admin" class="hidden space-y-6">
 
@@ -282,29 +285,33 @@
         <div>
           <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30 mb-2">
             <i data-lucide="shield" class="w-3.5 h-3.5"></i>
-            ADMINISTRATION MANAGEMENT SYSTEM
+            ADMINISTRATION MANAGEMENT SYSTEM (2-LAYER CONFIGURATION)
           </div>
           <h2 class="text-xl font-bold">ระบบบริหารจัดการสำหรับผู้ดูแลระบบ</h2>
-          <p class="text-xs text-slate-300 mt-1">ตรวจสอบผลการทดสอบ กำหนดรายการแบบทดสอบ และจัดการบัญชีผู้ใช้งาน</p>
+          <p class="text-xs text-slate-300 mt-1">ตั้งค่าโครงสร้างแบบทดสอบ กำหนด Lot & เฉลยประจำเดือน ตรวจสอบผล และจัดการผู้ใช้งาน</p>
         </div>
         <div class="flex items-center gap-3">
           <button id="admin-export-pdf-all-btn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 backdrop-blur transition flex items-center gap-2">
             <i data-lucide="file-text" class="w-4 h-4 text-rose-400"></i>
-            <span>ส่งออกรายงานรวม (PDF)</span>
+            <span>ส่งออกรายงานพร้อมเฉลย (PDF)</span>
           </button>
         </div>
       </div>
 
-      <!-- Navigation Tabs: 3 Tabs -->
+      <!-- Navigation Tabs: 4 Tabs -->
       <div class="flex border-b border-slate-200 gap-4 overflow-x-auto">
         <button id="admin-tab-results-btn" class="pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition whitespace-nowrap">
           <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
-          <span>ผลการทดสอบแยกตามหน่วยงาน</span>
+          <span>ผลการทดสอบ & เปรียบเทียบเฉลย</span>
         </button>
         <button id="admin-tab-config-btn" class="pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition whitespace-nowrap">
           <i data-lucide="sliders" class="w-4 h-4"></i>
-          <span>กำหนดรายการแบบทดสอบ</span>
-          <span id="admin-tests-count-badge" class="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-xs font-mono">3</span>
+          <span>Layer 1: โครงสร้างแบบทดสอบ</span>
+          <span id="admin-tests-count-badge" class="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-xs font-mono">0</span>
+        </button>
+        <button id="admin-tab-lots-btn" class="pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition whitespace-nowrap">
+          <i data-lucide="calendar-check-2" class="w-4 h-4"></i>
+          <span>Layer 2: รอบ Lot & เฉลยประจำเดือน</span>
         </button>
         <button id="admin-tab-users-btn" class="pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition whitespace-nowrap">
           <i data-lucide="users" class="w-4 h-4"></i>
@@ -313,7 +320,7 @@
         </button>
       </div>
 
-      <!-- TAB 1: RESULTS VIEW -->
+      <!-- TAB 1: RESULTS & EVALUATION VIEW -->
       <div id="admin-tab-results" class="space-y-6">
 
         <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-4">
@@ -342,7 +349,7 @@
           <div class="flex items-center gap-2">
             <button id="admin-quick-pdf-btn" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
               <i data-lucide="file-down" class="w-4 h-4 text-rose-600"></i>
-              <span>ส่งออกเป็น PDF (หน้าปัจจุบัน)</span>
+              <span>ส่งออกรายงาน PDF พร้อมเฉลย</span>
             </button>
           </div>
         </div>
@@ -351,8 +358,8 @@
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
             <div>
-              <h3 class="text-sm font-bold text-slate-800">ตารางผลการทดสอบแยกตามหน่วยงานและประจำเดือน</h3>
-              <p class="text-xs text-slate-500">แสดงผลการทดสอบที่บันทึกแล้วแบบ Real-time</p>
+              <h3 class="text-sm font-bold text-slate-800">ตารางผลการทดสอบและเปรียบเทียบเฉลยประจำเดือน</h3>
+              <p class="text-xs text-slate-500">แสดงผลที่รายงานแยกตามเครื่องตรวจและเปรียบเทียบกับเกณฑ์ช่วงเฉลย (Min - Max)</p>
             </div>
             <span id="admin-results-count-text" class="text-xs font-medium text-slate-500">
               พบ 0 รายการ
@@ -363,33 +370,31 @@
             <table class="w-full text-left text-sm border-collapse">
               <thead>
                 <tr id="admin-table-header" class="bg-slate-100/70 text-slate-600 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
-                  <th class="py-3 px-4">ประจำเดือน</th>
+                  <th class="py-3 px-4">ประจำเดือน / Lot</th>
                   <th class="py-3 px-4">หน่วยงาน / รหัส</th>
                   <!-- Test Columns -->
                   <th class="py-3 px-4">วันที่บันทึก</th>
                   <th class="py-3 px-4 text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody id="admin-results-table-body" class="divide-y divide-slate-100 text-slate-700">
-                <!-- Injected by main.js -->
-              </tbody>
+              <tbody id="admin-results-table-body" class="divide-y divide-slate-100 text-slate-700"></tbody>
             </table>
           </div>
         </div>
 
       </div>
 
-      <!-- TAB 2: CONFIG TESTS -->
+      <!-- TAB 2: LAYER 1 - CONFIG TESTS (แม่แบบโครงสร้างแบบทดสอบ) -->
       <div id="admin-tab-config" class="hidden space-y-6">
 
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
-            <h3 class="text-base font-bold text-slate-800">ตั้งค่าแบบทดสอบ (Test Configurations)</h3>
-            <p class="text-xs text-slate-500 mt-0.5">กำหนดรายการแบบทดสอบและรูปแบบคำตอบ เช่น <strong>ตัวเลือก (Options)</strong>, <strong>ตัวเลข (Numeric)</strong> หรือ <strong>ข้อความสั้น (Short Text)</strong></p>
+            <h3 class="text-base font-bold text-slate-800">Layer 1: โครงสร้างแบบทดสอบหลัก (Master Test Blueprint)</h3>
+            <p class="text-xs text-slate-500 mt-0.5">กำหนดรายการแบบทดสอบ รูปแบบคำตอบ การแบ่งระดับ (Levels: LV1, LV2, LV3) และเปิด/ปิดออปชันการลงผลหลายเครื่อง</p>
           </div>
           <button id="admin-add-test-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
             <i data-lucide="plus-circle" class="w-4 h-4"></i>
-            <span>เพิ่มรายการแบบทดสอบ</span>
+            <span>เพิ่มโครงสร้างแบบทดสอบใหม่</span>
           </button>
         </div>
 
@@ -397,7 +402,63 @@
 
       </div>
 
-      <!-- TAB 3: USER MANAGEMENT (สร้าง / ลบ / แบ่งสิทธิ์ผู้ใช้งาน) -->
+      <!-- TAB 3: LAYER 2 - MONTHLY LOT & ANSWER KEYS (รอบ Lot และเฉลย) -->
+      <div id="admin-tab-lots" class="hidden space-y-6">
+
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-800">Layer 2: กำหนด Lot และเฉลยประจำเดือน (Monthly Lot & Answer Keys)</h3>
+              <p class="text-xs text-slate-500 mt-0.5">เลือกรอบประจำเดือนเพื่อกำหนดหมายเลข Lot และระบุค่าช่วงเกณฑ์เฉลย (Min - Max) หรือคำตอบที่ถูกต้องของแต่ละ Level</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-semibold text-slate-600">เลือกรอบประจำเดือน:</label>
+              <select id="lot-select-month" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500"></select>
+              <select id="lot-select-year" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500">
+                <option value="2026">2569 (2026)</option>
+                <option value="2025">2568 (2025)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Lot Number Input -->
+          <div class="pt-4 border-t border-slate-100 flex flex-wrap items-center gap-4">
+            <div class="flex-1 min-w-[240px]">
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">หมายเลข Lot ประจำรอบนี้ (Lot Number)</label>
+              <input type="text" id="lot-input-number" placeholder="เช่น LOT-202610-BKT" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 font-mono font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div class="flex-1 min-w-[240px]">
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">คำชี้แจง / วันหมดอายุของสาร QC ประจำรอบ</label>
+              <input type="text" id="lot-input-remarks" placeholder="เช่น สารควบคุมคุณภาพล็อตใหม่ หรือหมายเหตุรอบนี้" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Answer Keys Configuration Matrix -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="target" class="w-4 h-4 text-indigo-600"></i>
+              <span>ตารางกำหนดเฉลย / ช่วงเกณฑ์มาตรฐาน (Target & Range) ประจำรอบเดือนนี้</span>
+            </h4>
+            <span class="text-xs text-slate-400">เฉลยนี้จะมองเห็นเฉพาะผู้ดูแลระบบและแสดงในรายงาน PDF สรุปผล</span>
+          </div>
+
+          <div id="lot-answer-keys-container" class="space-y-4">
+            <!-- Injected by main.js based on Layer 1 Tests -->
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex justify-end">
+            <button id="btn-save-lot-answers" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
+              <i data-lucide="save" class="w-4 h-4"></i>
+              <span>บันทึก Lot และเฉลยประจำเดือนนี้</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB 4: USER MANAGEMENT -->
       <div id="admin-tab-users" class="hidden space-y-6">
 
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -411,7 +472,6 @@
           </button>
         </div>
 
-        <!-- Users Table -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm border-collapse">
@@ -424,9 +484,7 @@
                   <th class="py-3 px-4 text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody id="admin-users-table-body" class="divide-y divide-slate-100 text-slate-700">
-                <!-- Injected by main.js -->
-              </tbody>
+              <tbody id="admin-users-table-body" class="divide-y divide-slate-100 text-slate-700"></tbody>
             </table>
           </div>
         </div>
@@ -437,7 +495,109 @@
 
   </main>
 
-  <!-- ================= MODAL: CREATE NEW USER ================= -->
+  <!-- ================= MODAL: LAYER 1 TEST CONFIG ================= -->
+  <div id="modal-test-config" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
+      
+      <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div>
+          <h3 id="modal-test-config-title" class="text-base font-bold text-slate-800">ตั้งค่าโครงสร้างแบบทดสอบ (Layer 1)</h3>
+          <p class="text-xs text-slate-500">กำหนดชื่อ รูปแบบคำตอบ Levels และตัวเลือกหลายเครื่อง</p>
+        </div>
+        <button id="modal-test-config-close-btn" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 flex items-center justify-center transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="form-test-config" class="p-6 space-y-4">
+        <input type="hidden" id="cfg-test-id">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">รหัสแบบทดสอบ (Key เช่น GLUCOSE, TEST_A)</label>
+          <input type="text" id="cfg-test-key" required placeholder="เช่น GLUCOSE" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 font-mono focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">ชื่อรายการแบบทดสอบ</label>
+          <input type="text" id="cfg-test-name" required placeholder="เช่น การตรวจวัดระดับน้ำตาล (Glucose)" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">คำอธิบายประกอบ</label>
+          <input type="text" id="cfg-test-desc" placeholder="เช่น การตรวจประเมินคุณภาพความเข้มข้น" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">รูปแบบการบันทึกผล</label>
+            <select id="cfg-test-type" class="w-full text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+              <option value="number">ใส่เป็นตัวเลข (Numeric Value)</option>
+              <option value="select">ตัวเลือก (Select / Dropdown Choices)</option>
+              <option value="text">พิมพ์ข้อความสั้นๆ ตอบ (Short Text)</option>
+            </select>
+          </div>
+          <div id="cfg-box-unit">
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">หน่วยวัด (Unit)</label>
+            <input type="text" id="cfg-test-unit" placeholder="เช่น mg/dL, IU/mL" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+
+        <div id="cfg-box-options" class="hidden space-y-1">
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">รายการตัวเลือก (คั่นด้วยคอมม่า ,)</label>
+          <input type="text" id="cfg-test-options" placeholder="Positive (+), Negative (-), Borderline" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <!-- Layer 1 Advanced Settings: Multi-Level & Multi-Machine -->
+        <div class="pt-3 border-t border-slate-100 space-y-3 bg-slate-50 p-4 rounded-xl">
+          <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-indigo-600"></i>
+            <span>การตั้งค่าขั้นสูง (Levels & Machines)</span>
+          </h4>
+
+          <!-- Multi-Level Toggle -->
+          <div class="space-y-2">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="cfg-enable-levels" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+              <span class="text-xs font-semibold text-slate-700">เปิดใช้งานการแบ่งระดับ (Multi-Level: เช่น LV1, LV2, LV3)</span>
+            </label>
+            <div id="cfg-box-levels" class="hidden pl-6 space-y-1">
+              <label class="block text-[11px] font-medium text-slate-500">รายการ Levels (คั่นด้วยคอมม่า ,)</label>
+              <input type="text" id="cfg-levels-list" placeholder="LV1, LV2, LV3" class="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500">
+            </div>
+          </div>
+
+          <!-- Multi-Machine Toggle -->
+          <div class="space-y-2 pt-2 border-t border-slate-200/60">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="cfg-enable-machine" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+              <span class="text-xs font-semibold text-slate-700">อนุญาตให้ลงผลมากกว่า 1 เครื่อง (Multi-Machine)</span>
+            </label>
+            <div id="cfg-box-machine" class="hidden pl-6 space-y-1">
+              <label class="block text-[11px] font-medium text-slate-500">จำนวนเครื่องสูงสุดที่อนุญาตให้เพิ่มได้</label>
+              <select id="cfg-max-machines" class="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500">
+                <option value="2">สูงสุด 2 เครื่อง</option>
+                <option value="3" selected>สูงสุด 3 เครื่อง</option>
+                <option value="5">สูงสุด 5 เครื่อง</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+          <button type="button" id="modal-test-config-cancel-btn" class="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-xl transition">
+            ยกเลิก
+          </button>
+          <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            <span>บันทึกโครงสร้าง</span>
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CREATE USER ================= -->
   <div id="modal-user-create" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
       
@@ -506,80 +666,14 @@
     </div>
   </div>
 
-  <!-- ================= MODAL: CONFIGURE TEST ================= -->
-  <div id="modal-test-config" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
-      
-      <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-        <div>
-          <h3 id="modal-test-config-title" class="text-base font-bold text-slate-800">ตั้งค่าแบบทดสอบ</h3>
-          <p class="text-xs text-slate-500">กำหนดชื่อและรูปแบบคำตอบสำหรับการบันทึกผล</p>
-        </div>
-        <button id="modal-test-config-close-btn" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 flex items-center justify-center transition">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <form id="form-test-config" class="p-6 space-y-4">
-        <input type="hidden" id="cfg-test-id">
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">รหัสแบบทดสอบ (ภาษาอังกฤษ เช่น TEST_D)</label>
-          <input type="text" id="cfg-test-key" required placeholder="เช่น TEST_D" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 font-mono focus:ring-2 focus:ring-indigo-500">
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">ชื่อรายการแบบทดสอบ</label>
-          <input type="text" id="cfg-test-name" required placeholder="เช่น Test A, ระดับกลูโคส" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">คำอธิบายประกอบ</label>
-          <input type="text" id="cfg-test-desc" placeholder="เช่น การตรวจประเมินคุณภาพความถูกต้อง" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">รูปแบบการบันทึกผล</label>
-          <select id="cfg-test-type" class="w-full text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
-            <option value="select">ตัวเลือก (Select / Dropdown Choices)</option>
-            <option value="number">ใส่เป็นตัวเลข (Numeric Value)</option>
-            <option value="text">พิมพ์ข้อความสั้นๆ ตอบ (Short Text)</option>
-          </select>
-        </div>
-
-        <div id="cfg-box-options" class="space-y-1">
-          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">รายการตัวเลือก (คั่นด้วยเครื่องหมายจุลภาค ,)</label>
-          <input type="text" id="cfg-test-options" placeholder="Positive, Negative, Borderline" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
-          <p class="text-[11px] text-slate-400">พิมพ์ตัวเลือกแต่ละข้อคั่นด้วยเครื่องหมายคอมม่า (,) เช่น Positive, Negative</p>
-        </div>
-
-        <div id="cfg-box-unit" class="hidden space-y-1">
-          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">หน่วยวัด (Unit) (ถ้ามี)</label>
-          <input type="text" id="cfg-test-unit" placeholder="เช่น mg/dL, IU/mL, % หรือ ครั้ง/นาที" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
-        </div>
-
-        <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
-          <button type="button" id="modal-test-config-cancel-btn" class="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-xl transition">
-            ยกเลิก
-          </button>
-          <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5">
-            <i data-lucide="save" class="w-4 h-4"></i>
-            <span>บันทึกการตั้งค่า</span>
-          </button>
-        </div>
-      </form>
-
-    </div>
-  </div>
-
-  <!-- ================= MODAL: PDF EXPORT ================= -->
+  <!-- ================= MODAL: PDF EXPORT (With Official Answer Keys) ================= -->
   <div id="modal-pdf" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
       
       <div class="px-6 py-3.5 bg-slate-900 text-white flex items-center justify-between no-print">
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-          <h3 class="text-sm font-bold">เอกสารรายงานผลการทดสอบ (PDF Report)</h3>
+          <h3 class="text-sm font-bold">รายงานผลการทดสอบและเฉลยเกณฑ์มาตรฐาน (Evaluation & Answer Key Report)</h3>
         </div>
         <div class="flex items-center gap-2">
           <button id="pdf-print-btn" class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5">
@@ -601,9 +695,9 @@
           
           <div class="border-b-2 border-slate-800 pb-5 flex justify-between items-start">
             <div>
-              <div class="text-xs font-bold tracking-widest text-slate-400 uppercase">OFFICIAL REPORT</div>
-              <h1 class="text-xl sm:text-2xl font-bold text-slate-900">ใบรายงานผลการทดสอบประจำเดือน</h1>
-              <p class="text-xs text-slate-500 mt-1">ระบบประเมินและติดตามผลการทดสอบทางห้องปฏิบัติการ</p>
+              <div class="text-xs font-bold tracking-widest text-slate-400 uppercase">OFFICIAL EVALUATION REPORT</div>
+              <h1 class="text-xl sm:text-2xl font-bold text-slate-900">ใบรายงานสรุปผลการทดสอบและเกณฑ์เฉลยมาตรฐาน</h1>
+              <p class="text-xs text-slate-500 mt-1">ระบบประเมินผลการทดสอบทางห้องปฏิบัติการประจำเดือน (External Quality Assessment)</p>
             </div>
             <div class="text-right text-xs">
               <div class="font-mono font-bold text-slate-700" id="pdf-doc-number">DOC-2026-0042</div>
@@ -614,37 +708,39 @@
           <div id="pdf-site-info-box" class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg text-xs border border-slate-200">
             <div>
               <span class="text-slate-400 block font-medium">หน่วยงานผู้รายงานผล:</span>
-              <span id="pdf-site-name" class="font-bold text-slate-800 text-sm">ศูนย์ทดสอบสาขา 1</span>
-              <span id="pdf-site-code" class="text-slate-500 block">รหัสสมาชิก: LAB-001</span>
+              <span id="pdf-site-name" class="font-bold text-slate-800 text-sm">ศูนย์ทดสอบ</span>
+              <span id="pdf-site-code" class="text-slate-500 block">รหัสสมาชิก: -</span>
             </div>
             <div>
-              <span class="text-slate-400 block font-medium">รอบการประเมิน:</span>
+              <span class="text-slate-400 block font-medium">รอบการประเมิน & หมายเลข Lot:</span>
               <span id="pdf-period-name" class="font-bold text-slate-800 text-sm">ประจำปี 2569</span>
-              <span id="pdf-filter-label" class="text-slate-500 block">ข้อมูลครบทุกรอบเดือน</span>
+              <span id="pdf-lot-info" class="text-indigo-600 font-mono font-bold block">LOT: -</span>
             </div>
           </div>
 
           <div>
-            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">สรุปรายการผลการทดสอบ (Test Results Summary)</h4>
-            <table class="w-full text-xs text-left border-collapse border border-slate-200">
-              <thead>
-                <tr id="pdf-table-header" class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                  <th class="p-2.5 border-r border-slate-200">เดือน</th>
-                  <th class="p-2.5 border-r border-slate-200">หน่วยงาน</th>
-                  <!-- Test Columns -->
-                  <th class="p-2.5 border-r border-slate-200">วันที่บันทึกผล</th>
-                  <th class="p-2.5 text-center">สถานะ</th>
-                </tr>
-              </thead>
-              <tbody id="pdf-table-body" class="divide-y divide-slate-200"></tbody>
-            </table>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">ตารางเปรียบเทียบผลการทดสอบกับค่าเฉลย (Comparison Matrix)</h4>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left border-collapse border border-slate-200">
+                <thead>
+                  <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                    <th class="p-2 border-r border-slate-200">รายการทดสอบ</th>
+                    <th class="p-2 border-r border-slate-200">เครื่องตรวจ / ระดับ</th>
+                    <th class="p-2 border-r border-slate-200 text-center">ผลที่รายงาน (Result)</th>
+                    <th class="p-2 border-r border-slate-200 text-center bg-indigo-50/50">เกณฑ์เฉลย (Target Range)</th>
+                    <th class="p-2 text-center">การประเมิน</th>
+                  </tr>
+                </thead>
+                <tbody id="pdf-table-body" class="divide-y divide-slate-200"></tbody>
+              </table>
+            </div>
           </div>
 
           <div class="pt-4 border-t border-slate-200 grid grid-cols-2 gap-6 text-xs">
             <div>
               <span class="font-bold text-slate-700 block mb-1">หมายเหตุของระบบ:</span>
               <p class="text-slate-500 leading-relaxed text-[11px]">
-                เอกสารนี้เป็นรายงานสรุปผลการทดสอบที่บันทึกผ่านระบบอิเล็กทรอนิกส์ ข้อมูลทั้งหมดได้รับการบันทึกและตรวจสอบความถูกต้องตามเกณฑ์มาตรฐาน
+                เอกสารนี้เป็นรายงานสรุปผลการทดสอบเปรียบเทียบกับเกณฑ์ค่าช่วงเฉลยที่กำหนดโดยศูนย์ควบคุมคุณภาพ ข้อมูลทั้งหมดได้รับการประเมินตามเกณฑ์มาตรฐานทางห้องปฏิบัติการ
               </p>
             </div>
             <div class="flex flex-col items-center justify-end text-center pt-8">

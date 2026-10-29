@@ -1,8 +1,8 @@
 // ============================================================================
-// Firebase SDK Initializer & Unified Service Layer (Production Fixed)
+// Firebase SDK Initializer & Unified Service Layer (2-Layer Test Architecture)
 // ============================================================================
 
-import { initializeApp, getApps, deleteApp } from 'firebase/app';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -49,7 +49,7 @@ if (isFirebaseConfigured) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
-    console.log('[Firebase] Initialized successfully with project:', firebaseConfig.projectId);
+    console.log('[Firebase] Initialized with project:', firebaseConfig.projectId);
   } catch (err) {
     console.warn('[Firebase] Init error, running with fallback:', err);
   }
@@ -58,42 +58,55 @@ if (isFirebaseConfigured) {
 export { auth, db };
 
 // ============================================================================
-// Default Test Configurations
+// Default Test Configurations (Layer 1 Seed)
+// รองรับ Multi-Level (LV1, LV2, LV3) และ Multi-Machine
 // ============================================================================
 const DEFAULT_TEST_CONFIGS = [
   {
+    id: 'test_glucose',
+    key: 'GLUCOSE',
+    name: 'การตรวจวัดระดับน้ำตาล (Glucose)',
+    description: 'การทดสอบระดับน้ำตาลในเลือด รายงานผลแยกตามระดับและเครื่องตรวจ',
+    type: 'number',
+    unit: 'mg/dL',
+    enableLevels: true,
+    levels: ['LV1', 'LV2', 'LV3'],
+    enableMultiMachine: true,
+    maxMachines: 3,
+    options: [],
+    order: 1
+  },
+  {
     id: 'test_a',
     key: 'TEST_A',
-    name: 'Test A',
-    description: 'การทดสอบความไวเชิงคุณภาพ (Qualitative Evaluation)',
+    name: 'Test A (Qualitative)',
+    description: 'การทดสอบความไวเชิงคุณภาพ',
     type: 'select',
-    options: ['Positive (+)', 'Negative (-)', 'Borderline / Inconclusive'],
     unit: '',
-    order: 1
+    enableLevels: true,
+    levels: ['LV1', 'LV2'],
+    enableMultiMachine: false,
+    maxMachines: 1,
+    options: ['Positive (+)', 'Negative (-)', 'Borderline'],
+    order: 2
   },
   {
     id: 'test_b',
     key: 'TEST_B',
-    name: 'Test B',
-    description: 'การวัดค่าระดับความเข้มข้นเชิงปริมาณ (Quantitative Value)',
+    name: 'Test B (Single Numeric)',
+    description: 'การวัดค่าระดับความเข้มข้นเชิงปริมาณแบบเครื่องเดียว',
     type: 'number',
+    unit: 'IU/mL',
+    enableLevels: false,
+    levels: ['Default'],
+    enableMultiMachine: false,
+    maxMachines: 1,
     options: [],
-    unit: 'mg/dL',
-    order: 2
-  },
-  {
-    id: 'test_c',
-    key: 'TEST_C',
-    name: 'Test C',
-    description: 'การสรุปผลการวิเคราะห์สั้นๆ (Short Text Assessment)',
-    type: 'text',
-    options: [],
-    unit: '',
     order: 3
   }
 ];
 
-// Initial default users (only if no users found anywhere and no users deleted)
+// Initial default superadmin
 const INITIAL_SUPER_ADMIN = {
   uid: 'adminbkt_super_uid',
   username: 'adminbkt',
@@ -109,9 +122,6 @@ const INITIAL_SUPER_ADMIN = {
 // Service API Layer (Unified Interface for Auth & Data)
 // ============================================================================
 
-/**
- * Normalize username input to standard email (Defaults to @bkt.com)
- */
 export function normalizeUserEmail(input) {
   const trimmed = input.trim();
   if (trimmed.includes('@')) {
@@ -126,7 +136,6 @@ export function normalizeUserEmail(input) {
 export async function apiLogin(userInput, password) {
   const email = normalizeUserEmail(userInput);
   const username = email.split('@')[0];
-
   const isSuperAdmin = (email === 'adminbkt@bkt.com' || email === 'admin@bkt.com' || username === 'adminbkt');
 
   if (isFirebaseConfigured && auth && db) {
@@ -149,7 +158,6 @@ export async function apiLogin(userInput, password) {
           await setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(() => {});
         }
       } else {
-        // Auto-create initial profile for the authenticated user
         userData = {
           uid,
           email,
@@ -161,7 +169,7 @@ export async function apiLogin(userInput, password) {
           role: isSuperAdmin ? 'admin' : 'user',
           createdAt: new Date().toISOString()
         };
-        await setDoc(userDocRef, userData, { merge: true }).catch(e => console.warn('User profile doc auto-set failed:', e));
+        await setDoc(userDocRef, userData, { merge: true }).catch(() => {});
       }
 
       localStorage.setItem('portal_current_user', JSON.stringify(userData));
@@ -169,13 +177,11 @@ export async function apiLogin(userInput, password) {
     } catch (firebaseErr) {
       console.warn('[Firebase Auth Error]:', firebaseErr.code, firebaseErr.message);
 
-      // Check fallback credentials
       if (isSuperAdmin && password === 'adminbkt') {
         localStorage.setItem('portal_current_user', JSON.stringify(INITIAL_SUPER_ADMIN));
         return INITIAL_SUPER_ADMIN;
       }
 
-      // Check local registered users list
       const localUsers = await apiGetUsers();
       const matched = localUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
       if (matched && (password === username || password === 'adminbkt' || password === '123456')) {
@@ -189,7 +195,6 @@ export async function apiLogin(userInput, password) {
       throw new Error(`การเข้าสู่ระบบขัดข้อง: ${firebaseErr.message}`);
     }
   } else {
-    // Local Standalone Demo Mode
     if (isSuperAdmin && (password === 'adminbkt' || password === 'admin')) {
       localStorage.setItem('portal_current_user', JSON.stringify(INITIAL_SUPER_ADMIN));
       return INITIAL_SUPER_ADMIN;
@@ -206,9 +211,6 @@ export async function apiLogin(userInput, password) {
   }
 }
 
-/**
- * Logout function
- */
 export async function apiLogout() {
   if (isFirebaseConfigured && auth) {
     try {
@@ -220,9 +222,6 @@ export async function apiLogout() {
   localStorage.removeItem('portal_current_user');
 }
 
-/**
- * Get Current Active User
- */
 export async function apiGetCurrentUser() {
   const local = localStorage.getItem('portal_current_user');
   const parsedLocal = local ? JSON.parse(local) : null;
@@ -262,15 +261,10 @@ export async function apiGetCurrentUser() {
 }
 
 // ============================================================================
-// User Management API (Admin Tab 3) - Completely Fixed
+// User Management API
 // ============================================================================
-
-/**
- * Fetch all users list
- */
 export async function apiGetUsers() {
   const firestoreUsers = [];
-
   if (isFirebaseConfigured && db) {
     try {
       const snap = await getDocs(collection(db, 'users'));
@@ -280,33 +274,24 @@ export async function apiGetUsers() {
     }
   }
 
-  // Check local cache
   const rawLocal = localStorage.getItem('portal_all_users');
   let localUsers = rawLocal ? JSON.parse(rawLocal) : null;
 
   if (firestoreUsers.length > 0) {
-    // Sync with Firestore users and save to local cache
     localStorage.setItem('portal_all_users', JSON.stringify(firestoreUsers));
     return firestoreUsers;
   }
 
-  // If both empty and never initialized before, initialize with Super Admin only (NO Test 1 / Test 2)
   if (!localUsers) {
     localUsers = [INITIAL_SUPER_ADMIN];
     localStorage.setItem('portal_all_users', JSON.stringify(localUsers));
   }
-
   return localUsers;
 }
 
-/**
- * Create a new user by Admin
- * Uses Secondary App + Secondary Firestore for reliable cross-instance creation
- */
 export async function apiCreateUserByAdmin({ email, password, name, code, department, contact, role }) {
   const normEmail = normalizeUserEmail(email);
   const username = normEmail.split('@')[0];
-
   let newUserDoc = null;
 
   if (isFirebaseConfigured && db) {
@@ -316,7 +301,6 @@ export async function apiCreateUserByAdmin({ email, password, name, code, depart
     const secondaryDb = getFirestore(secondaryApp);
 
     try {
-      // 1. Create in Firebase Auth
       const cred = await createUserWithEmailAndPassword(secondaryAuth, normEmail, password);
       const newUid = cred.user.uid;
 
@@ -332,25 +316,17 @@ export async function apiCreateUserByAdmin({ email, password, name, code, depart
         createdAt: new Date().toISOString()
       };
 
-      // 2. Try writing to Firestore using the newly authenticated secondary app (Own Profile Write)
       try {
         await setDoc(doc(secondaryDb, 'users', newUid), newUserDoc);
       } catch (errWriteSecondary) {
-        console.warn('Writing via secondaryDb failed, attempting via primary db:', errWriteSecondary);
-        // Fallback to primary db (Admin)
-        await setDoc(doc(db, 'users', newUid), newUserDoc).catch(e => {
-          console.warn('Writing to Firestore users failed due to rules, caching locally:', e);
-        });
+        await setDoc(doc(db, 'users', newUid), newUserDoc).catch(() => {});
       }
 
-      // Cleanup secondary app instance
       await signOut(secondaryAuth).catch(() => {});
       await deleteApp(secondaryApp).catch(() => {});
-
     } catch (err) {
       await signOut(secondaryAuth).catch(() => {});
       await deleteApp(secondaryApp).catch(() => {});
-
       if (err.code === 'auth/email-already-in-use') {
         throw new Error(`อีเมล ${normEmail} มีอยู่ในระบบแล้ว`);
       }
@@ -375,7 +351,6 @@ export async function apiCreateUserByAdmin({ email, password, name, code, depart
     };
   }
 
-  // 3. Always update local cache immediately so the table updates seamlessly
   const currentList = await apiGetUsers();
   const existingIdx = currentList.findIndex(u => u.email.toLowerCase() === normEmail.toLowerCase());
   if (existingIdx >= 0) {
@@ -384,15 +359,10 @@ export async function apiCreateUserByAdmin({ email, password, name, code, depart
     currentList.push(newUserDoc);
   }
   localStorage.setItem('portal_all_users', JSON.stringify(currentList));
-
   return newUserDoc;
 }
 
-/**
- * Update user role or profile
- */
 export async function apiUpdateUser(uid, updates) {
-  // Update local cache first
   const list = await apiGetUsers();
   const idx = list.findIndex(u => u.uid === uid);
   if (idx >= 0) {
@@ -404,16 +374,12 @@ export async function apiUpdateUser(uid, updates) {
     try {
       await updateDoc(doc(db, 'users', uid), updates);
     } catch (e) {
-      console.warn('Firestore updateDoc failed, updated locally:', e);
+      console.warn('Firestore updateDoc failed:', e);
     }
   }
 }
 
-/**
- * Delete a user (Deletes from BOTH Firestore and Local Cache so it never comes back)
- */
 export async function apiDeleteUser(uid) {
-  // 1. Delete from local cache immediately
   const rawLocal = localStorage.getItem('portal_all_users');
   if (rawLocal) {
     const list = JSON.parse(rawLocal);
@@ -421,18 +387,17 @@ export async function apiDeleteUser(uid) {
     localStorage.setItem('portal_all_users', JSON.stringify(filtered));
   }
 
-  // 2. Delete from Firestore if configured
   if (isFirebaseConfigured && db) {
     try {
       await deleteDoc(doc(db, 'users', uid));
     } catch (e) {
-      console.warn('Firestore deleteDoc failed, removed locally:', e);
+      console.warn('Firestore deleteDoc failed:', e);
     }
   }
 }
 
 // ============================================================================
-// Test Configurations API
+// LAYER 1: Master Test Configurations API
 // ============================================================================
 export async function apiGetTestConfigs() {
   if (isFirebaseConfigured && db) {
@@ -490,7 +455,43 @@ export async function apiDeleteTestConfig(testId) {
 }
 
 // ============================================================================
-// Submissions API
+// LAYER 2: Monthly Lot & Answer Key API
+// ============================================================================
+export async function apiGetMonthlyLots() {
+  if (isFirebaseConfigured && db) {
+    try {
+      const snap = await getDocs(collection(db, 'monthly_lots'));
+      const map = {};
+      snap.forEach(d => {
+        map[d.id] = d.data();
+      });
+      if (Object.keys(map).length > 0) return map;
+    } catch (e) {
+      console.warn('Firestore monthly_lots fetch failed, using fallback:', e);
+    }
+  }
+
+  const raw = localStorage.getItem('portal_monthly_lots');
+  return raw ? JSON.parse(raw) : {};
+}
+
+export async function apiSaveMonthlyLot(lotKey, lotData) {
+  const lots = await apiGetMonthlyLots();
+  lots[lotKey] = lotData;
+  localStorage.setItem('portal_monthly_lots', JSON.stringify(lots));
+
+  if (isFirebaseConfigured && db) {
+    try {
+      const docRef = doc(db, 'monthly_lots', lotKey);
+      await setDoc(docRef, lotData, { merge: true });
+    } catch (e) {
+      console.warn('Firestore saveMonthlyLot failed:', e);
+    }
+  }
+}
+
+// ============================================================================
+// Submissions API (Supports Multi-Level & Multi-Machine Matrix)
 // ============================================================================
 export async function apiGetSubmissions() {
   if (isFirebaseConfigured && db) {
