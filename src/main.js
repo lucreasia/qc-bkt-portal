@@ -1,18 +1,21 @@
 // ============================================================================
-// Main Application Controller (Production Modular Architecture)
+// Main Application Controller (Production Phase 2)
 // ============================================================================
 
 import {
   apiLogin,
   apiLogout,
   apiGetCurrentUser,
+  apiGetUsers,
+  apiCreateUserByAdmin,
+  apiUpdateUser,
+  apiDeleteUser,
   apiGetTestConfigs,
   apiSaveTestConfig,
   apiDeleteTestConfig,
   apiGetSubmissions,
   apiSaveSubmission,
   apiDeleteSubmission,
-  apiSeedFirestore,
   isFirebaseConfigured
 } from './firebase.js';
 
@@ -21,16 +24,11 @@ const MONTH_NAMES = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
 ];
 
-const STATIC_USERS = {
-  'Test1': { name: 'ศูนย์ทดสอบสาขา 1 (หน่วยงานที่ 1)', code: 'LAB-001', department: 'แผนกเคมีคลินิกและโลหิตวิทยา', contact: 'คุณประสิทธิ์ รักษ์การแพทย์' },
-  'Test2': { name: 'ศูนย์ทดสอบสาขา 2 (หน่วยงานที่ 2)', code: 'LAB-002', department: 'แผนกจุลชีววิทยาและภูมิคุ้มกันวิทยา', contact: 'คุณศิริพร สุขสวัสดิ์' },
-  'admin': { name: 'ผู้ดูแลระบบส่วนกลาง (Admin)', code: 'ADMIN-HQ', department: 'ศูนย์บริหารจัดการข้อมูลการทดสอบกลาง', contact: 'ผู้ควบคุมระบบส่วนกลาง' }
-};
-
 let currentUser = null;
+let cachedUsersList = [];
 
 // ============================================================================
-// UI Helper: Toast Notifications
+// UI Helper: Toast Notifications (Located on the bottom-left)
 // ============================================================================
 export function showToast(message, type = 'success') {
   const container = document.getElementById('toast-container');
@@ -75,14 +73,14 @@ export async function initApp() {
     navUserInfo.innerHTML = `
       <div class="text-xs text-slate-500 flex items-center gap-1.5">
         <span class="w-2 h-2 rounded-full ${isFirebaseConfigured ? 'bg-emerald-500' : 'bg-amber-400'}"></span>
-        <span>${isFirebaseConfigured ? 'พร้อมเชื่อมต่อ Cloud Firestore' : 'โหมดสแตนด์อโลน'}</span>
+        <span>${isFirebaseConfigured ? 'ระบบออนไลน์ (Cloud Firestore)' : 'โหมดสแตนด์อโลน'}</span>
       </div>
     `;
   } else if (currentUser.role === 'admin') {
     viewAdmin.classList.remove('hidden');
     navUserInfo.innerHTML = `
       <div class="flex items-center gap-3">
-        <div class="text-right hidden sm:block">
+        <div class="text-left">
           <div class="text-xs font-bold text-slate-800">${currentUser.name || currentUser.username}</div>
           <div class="text-[11px] text-indigo-600 font-semibold font-mono">ADMINISTRATOR</div>
         </div>
@@ -98,7 +96,7 @@ export async function initApp() {
     viewUser.classList.remove('hidden');
     navUserInfo.innerHTML = `
       <div class="flex items-center gap-3">
-        <div class="text-right hidden sm:block">
+        <div class="text-left">
           <div class="text-xs font-bold text-slate-800">${currentUser.name || currentUser.username}</div>
           <div class="text-[11px] text-slate-500 font-mono">${currentUser.code || currentUser.memberCode || 'LAB-SITE'}</div>
         </div>
@@ -119,12 +117,13 @@ export async function initApp() {
 
 async function handleLogout() {
   await apiLogout();
+  currentUser = null;
   showToast('ออกจากระบบเรียบร้อย');
   initApp();
 }
 
 // ============================================================================
-// Login Form Controller
+// Login Controller
 // ============================================================================
 function setupLoginController() {
   const form = document.getElementById('login-form');
@@ -142,7 +141,7 @@ function setupLoginController() {
 
     try {
       const user = await apiLogin(username, password);
-      showToast(`ยินดีต้อนรับเข้าสู่ระบบ: ${user.name || user.username}`);
+      showToast(`เข้าสู่ระบบสำเร็จ: ${user.name || user.username}`);
       initApp();
     } catch (err) {
       errBox.textContent = err.message || 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง';
@@ -155,57 +154,105 @@ function setupLoginController() {
 }
 
 // ============================================================================
-// User Dashboard Controller
+// User Dashboard Controller (With Strict Past Month Locking)
 // ============================================================================
 async function renderUserDashboard() {
   if (!currentUser) return;
 
   const yearSelect = document.getElementById('u-year-select');
-  const year = parseInt(yearSelect.value) || 2026;
+  const selectedYear = parseInt(yearSelect.value) || 2026;
   const submissions = await apiGetSubmissions();
   const testConfigs = await apiGetTestConfigs();
 
-  // Populate Org Info Header
-  const orgDetails = STATIC_USERS[currentUser.username] || {};
-  document.getElementById('u-org-name').textContent = currentUser.orgName || currentUser.name || orgDetails.name || currentUser.username;
-  document.getElementById('u-member-id').textContent = currentUser.memberCode || currentUser.code || orgDetails.code || 'LAB-001';
-  document.getElementById('u-org-address').textContent = currentUser.department || orgDetails.department || 'ห้องปฏิบัติการมาตรฐาน';
-  document.getElementById('u-contact-person').textContent = currentUser.contactPerson || currentUser.contact || orgDetails.contact || 'เจ้าหน้าที่ผู้รับผิดชอบ';
-  document.getElementById('u-current-year').textContent = `${year + 543} (${year})`;
+  // Current real-world month & year
+  const today = new Date();
+  const realYear = today.getFullYear();
+  const realMonth = today.getMonth(); // 0 = Jan, 9 = Oct
 
-  // Calculate submitted vs pending
+  // Populate Org Info Header
+  document.getElementById('u-org-name').textContent = currentUser.name || currentUser.orgName || currentUser.username;
+  document.getElementById('u-member-id').textContent = currentUser.code || currentUser.memberCode || 'LAB-001';
+  document.getElementById('u-org-address').textContent = currentUser.department || 'แผนกห้องปฏิบัติการมาตรฐาน';
+  document.getElementById('u-contact-person').textContent = currentUser.contact || currentUser.contactPerson || 'เจ้าหน้าที่ผู้รับผิดชอบ';
+  document.getElementById('u-current-year').textContent = `${selectedYear + 543} (${selectedYear})`;
+
+  const userKey = currentUser.username || currentUser.email?.split('@')[0];
+
+  // Calculate stats
   let submittedCount = 0;
   for (let m = 0; m < 12; m++) {
-    const key = `${currentUser.username}_${year}_${m}`;
+    const key = `${userKey}_${selectedYear}_${m}`;
     if (submissions[key]) submittedCount++;
   }
   document.getElementById('u-stat-submitted').textContent = submittedCount;
   document.getElementById('u-stat-pending').textContent = 12 - submittedCount;
 
-  // Render 12 Month Grid Cards
+  // Render 12 Month Cards
   const container = document.getElementById('u-months-grid');
   container.innerHTML = '';
 
   for (let m = 0; m < 12; m++) {
-    const monthKey = `${currentUser.username}_${year}_${m}`;
+    const monthKey = `${userKey}_${selectedYear}_${m}`;
     const sub = submissions[monthKey];
     const isSubmitted = !!sub;
+
+    // Determine period status: Past, Current, or Future
+    let isPastMonth = false;
+    let isCurrentMonth = false;
+    let isFutureMonth = false;
+
+    if (selectedYear < realYear) {
+      isPastMonth = true;
+    } else if (selectedYear > realYear) {
+      isFutureMonth = true;
+    } else {
+      if (m < realMonth) {
+        isPastMonth = true;
+      } else if (m === realMonth) {
+        isCurrentMonth = true;
+      } else {
+        isFutureMonth = true;
+      }
+    }
 
     const card = document.createElement('div');
     card.className = `p-5 rounded-2xl border transition-all ${
       isSubmitted 
         ? 'bg-white border-emerald-200/90 shadow-sm hover:shadow-md' 
-        : 'bg-white border-slate-200 hover:border-sky-300 hover:shadow-sm'
+        : isCurrentMonth
+          ? 'bg-white border-sky-300 ring-2 ring-sky-100 shadow-sm'
+          : 'bg-white border-slate-200 opacity-90'
     }`;
 
-    let statusBadgeHtml = isSubmitted
-      ? `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-           <i data-lucide="check" class="w-3 h-3"></i> ลงผลแล้ว
-         </span>`
-      : `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-           <i data-lucide="clock" class="w-3 h-3"></i> ยังไม่ได้ลงผล
-         </span>`;
+    // Status Badge
+    let statusBadgeHtml = '';
+    if (isSubmitted) {
+      statusBadgeHtml = `
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <i data-lucide="check" class="w-3 h-3"></i> บันทึกผลแล้ว
+        </span>
+      `;
+    } else if (isCurrentMonth) {
+      statusBadgeHtml = `
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-300 animate-pulse">
+          <i data-lucide="bell" class="w-3 h-3"></i> รอบเดือนปัจจุบัน
+        </span>
+      `;
+    } else if (isPastMonth) {
+      statusBadgeHtml = `
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+          <i data-lucide="lock" class="w-3 h-3"></i> สิ้นสุดระยะเวลา
+        </span>
+      `;
+    } else {
+      statusBadgeHtml = `
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-400 border border-slate-200">
+          <i data-lucide="clock" class="w-3 h-3"></i> ยังไม่เปิดรอบ
+        </span>
+      `;
+    }
 
+    // Result Preview or Guidance Text
     let resultPreviewHtml = '';
     if (isSubmitted) {
       resultPreviewHtml = `
@@ -220,42 +267,67 @@ async function renderUserDashboard() {
             `;
           }).join('')}
           <div class="text-[10px] text-slate-400 pt-1 flex items-center justify-between">
-            <span>บันทึก: ${sub.submittedAt}</span>
+            <span>บันทึกเมื่อ: ${sub.submittedAt}</span>
           </div>
         </div>
       `;
     } else {
+      let descText = 'ยังไม่มีการบันทึกผลในรอบนี้';
+      if (isCurrentMonth) descText = 'พร้อมสำหรับการบันทึกผลการทดสอบประจำเดือนนี้';
+      if (isPastMonth) descText = 'รอบรายงานนี้ปิดรับการส่งผลแล้ว';
+      if (isFutureMonth) descText = 'จะเปิดให้รายงานเมื่อถึงรอบประจำเดือน';
+
       resultPreviewHtml = `
         <div class="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-400 py-2">
-          ยังไม่มีการบันทึกผลการทดสอบในรอบเดือนนี้
+          ${descText}
         </div>
       `;
     }
 
+    // Action Buttons logic (Past Month is strictly locked to Read-Only if submitted)
     const actionDiv = document.createElement('div');
     actionDiv.className = 'mt-4 pt-3 border-t border-slate-100';
 
     if (isSubmitted) {
-      actionDiv.className += ' grid grid-cols-2 gap-2';
-      
-      const viewBtn = document.createElement('button');
-      viewBtn.className = 'w-full py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition flex items-center justify-center gap-1';
-      viewBtn.innerHTML = '<i data-lucide="eye" class="w-3.5 h-3.5 text-slate-500"></i> ดูผลย้อนหลัง';
-      viewBtn.onclick = () => openEntryModal(currentUser.username, year, m, true);
+      if (isPastMonth) {
+        // Past Month: Read-only only
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'w-full py-1.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition flex items-center justify-center gap-1.5';
+        viewBtn.innerHTML = '<i data-lucide="eye" class="w-3.5 h-3.5 text-slate-500"></i> ตรวจสอบผลการทดสอบย้อนหลัง';
+        viewBtn.onclick = () => openEntryModal(userKey, selectedYear, m, true);
+        actionDiv.appendChild(viewBtn);
+      } else {
+        // Current Month: Can view or edit
+        actionDiv.className += ' grid grid-cols-2 gap-2';
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'w-full py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition flex items-center justify-center gap-1';
+        viewBtn.innerHTML = '<i data-lucide="eye" class="w-3.5 h-3.5 text-slate-500"></i> ดูผล';
+        viewBtn.onclick = () => openEntryModal(userKey, selectedYear, m, true);
 
-      const editBtn = document.createElement('button');
-      editBtn.className = 'w-full py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-medium rounded-lg border border-sky-200 transition flex items-center justify-center gap-1';
-      editBtn.innerHTML = '<i data-lucide="edit-3" class="w-3.5 h-3.5 text-sky-600"></i> แก้ไขผล';
-      editBtn.onclick = () => openEntryModal(currentUser.username, year, m, false);
+        const editBtn = document.createElement('button');
+        editBtn.className = 'w-full py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-medium rounded-lg border border-sky-200 transition flex items-center justify-center gap-1';
+        editBtn.innerHTML = '<i data-lucide="edit-3" class="w-3.5 h-3.5 text-sky-600"></i> แก้ไขผล';
+        editBtn.onclick = () => openEntryModal(userKey, selectedYear, m, false);
 
-      actionDiv.appendChild(viewBtn);
-      actionDiv.appendChild(editBtn);
+        actionDiv.appendChild(viewBtn);
+        actionDiv.appendChild(editBtn);
+      }
     } else {
-      const enterBtn = document.createElement('button');
-      enterBtn.className = 'w-full py-2 px-3 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center justify-center gap-1.5';
-      enterBtn.innerHTML = '<i data-lucide="plus-circle" class="w-4 h-4"></i> เข้าลงผลการทดสอบ';
-      enterBtn.onclick = () => openEntryModal(currentUser.username, year, m, false);
-      actionDiv.appendChild(enterBtn);
+      if (isCurrentMonth) {
+        // Only Current Month can be entered
+        const enterBtn = document.createElement('button');
+        enterBtn.className = 'w-full py-2 px-3 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center justify-center gap-1.5';
+        enterBtn.innerHTML = '<i data-lucide="plus-circle" class="w-4 h-4"></i> บันทึกผลการทดสอบ';
+        enterBtn.onclick = () => openEntryModal(userKey, selectedYear, m, false);
+        actionDiv.appendChild(enterBtn);
+      } else {
+        // Locked / Inactive button
+        const disabledBtn = document.createElement('button');
+        disabledBtn.disabled = true;
+        disabledBtn.className = 'w-full py-2 px-3 bg-slate-100 text-slate-400 text-xs font-medium rounded-lg cursor-not-allowed flex items-center justify-center gap-1.5';
+        disabledBtn.innerHTML = `<i data-lucide="${isPastMonth ? 'lock' : 'clock'}" class="w-3.5 h-3.5"></i> ${isPastMonth ? 'ปิดรับการรายงาน' : 'ยังไม่เปิดให้บันทึก'}`;
+        actionDiv.appendChild(disabledBtn);
+      }
     }
 
     card.innerHTML = `
@@ -277,29 +349,28 @@ async function renderUserDashboard() {
 }
 
 // ============================================================================
-// Entry Modal Controller (Submit & View Result)
+// Entry Modal Controller
 // ============================================================================
 async function openEntryModal(username, year, monthIndex, isReadOnly = false) {
   const monthKey = `${username}_${year}_${monthIndex}`;
   const submissions = await apiGetSubmissions();
   const existing = submissions[monthKey];
   const testConfigs = await apiGetTestConfigs();
-  const orgDetails = STATIC_USERS[username] || {};
 
   document.getElementById('entry-month-key').value = monthKey;
   document.getElementById('modal-entry-title').textContent = `แบบบันทึกผลการทดสอบประจำเดือน ${MONTH_NAMES[monthIndex]} ${year + 543} (${year})`;
-  document.getElementById('modal-entry-subtitle').textContent = `หน่วยงาน: ${orgDetails.name || username} (${orgDetails.code || 'LAB'})`;
+  document.getElementById('modal-entry-subtitle').textContent = `หน่วยงาน: ${username.toUpperCase()}`;
 
   const badge = document.getElementById('modal-mode-badge');
   const saveBtn = document.getElementById('btn-save-entry');
   const historyMeta = document.getElementById('entry-history-meta');
 
   if (isReadOnly) {
-    badge.textContent = 'ดูผลย้อนหลัง (READ-ONLY)';
+    badge.textContent = 'ตรวจสอบผลย้อนหลัง (ไม่อนุญาตให้แก้ไข)';
     badge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase tracking-wider';
     saveBtn.classList.add('hidden');
   } else {
-    badge.textContent = existing ? 'แก้ไขผลการทดสอบ' : 'ลงผลการทดสอบใหม่';
+    badge.textContent = existing ? 'แก้ไขผลการทดสอบ' : 'บันทึกผลการทดสอบใหม่';
     badge.className = existing 
       ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 uppercase tracking-wider'
       : 'px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 uppercase tracking-wider';
@@ -309,12 +380,11 @@ async function openEntryModal(username, year, monthIndex, isReadOnly = false) {
   if (existing) {
     historyMeta.classList.remove('hidden');
     document.getElementById('entry-submitted-at').textContent = `บันทึกเมื่อ: ${existing.submittedAt}`;
-    document.getElementById('entry-submitted-by').textContent = `ผู้บันทึก: ${orgDetails.name || username}`;
+    document.getElementById('entry-submitted-by').textContent = `ผู้บันทึก: ${username}`;
   } else {
     historyMeta.classList.add('hidden');
   }
 
-  // Render Dynamic Inputs
   const container = document.getElementById('dynamic-test-fields');
   container.innerHTML = '';
 
@@ -405,7 +475,7 @@ async function handleSaveSubmission(event) {
   const timeStamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
   const payload = {
-    userId: currentUser.uid || `uid_${username}`,
+    userId: currentUser?.uid || `uid_${username}`,
     username,
     year,
     monthIndex,
@@ -428,7 +498,7 @@ async function handleSaveSubmission(event) {
 // ============================================================================
 // Admin Portal Controller
 // ============================================================================
-function initAdminView() {
+async function initAdminView() {
   const monthSelect = document.getElementById('admin-filter-month');
   if (monthSelect.children.length <= 1) {
     MONTH_NAMES.forEach((name, idx) => {
@@ -439,28 +509,57 @@ function initAdminView() {
     });
   }
 
+  await loadAdminUsersDropdown();
   renderAdminResultsTable();
   renderAdminTestConfigsList();
+  renderAdminUsersTable();
+}
+
+async function loadAdminUsersDropdown() {
+  cachedUsersList = await apiGetUsers();
+  const userSelect = document.getElementById('admin-filter-user');
+  userSelect.innerHTML = '<option value="ALL">-- ทุกหน่วยงานที่ลงทะเบียน --</option>';
+
+  cachedUsersList.forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.username || u.email?.split('@')[0];
+    opt.textContent = `${u.name} (${u.code || u.username})`;
+    userSelect.appendChild(opt);
+  });
 }
 
 function switchAdminTab(tabName) {
   const resultsTab = document.getElementById('admin-tab-results');
   const configTab = document.getElementById('admin-tab-config');
+  const usersTab = document.getElementById('admin-tab-users');
+
   const resultsBtn = document.getElementById('admin-tab-results-btn');
   const configBtn = document.getElementById('admin-tab-config-btn');
+  const usersBtn = document.getElementById('admin-tab-users-btn');
+
+  const activeClass = 'pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition whitespace-nowrap';
+  const inactiveClass = 'pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition whitespace-nowrap';
+
+  resultsTab.classList.add('hidden');
+  configTab.classList.add('hidden');
+  usersTab.classList.add('hidden');
+
+  resultsBtn.className = inactiveClass;
+  configBtn.className = inactiveClass;
+  usersBtn.className = inactiveClass;
 
   if (tabName === 'results') {
     resultsTab.classList.remove('hidden');
-    configTab.classList.add('hidden');
-    resultsBtn.className = 'pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition';
-    configBtn.className = 'pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition';
+    resultsBtn.className = activeClass;
     renderAdminResultsTable();
-  } else {
-    resultsTab.classList.add('hidden');
+  } else if (tabName === 'config') {
     configTab.classList.remove('hidden');
-    resultsBtn.className = 'pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition';
-    configBtn.className = 'pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition';
+    configBtn.className = activeClass;
     renderAdminTestConfigsList();
+  } else {
+    usersTab.classList.remove('hidden');
+    usersBtn.className = activeClass;
+    renderAdminUsersTable();
   }
 
   if (window.lucide) {
@@ -475,21 +574,8 @@ async function renderAdminResultsTable() {
 
   const submissions = await apiGetSubmissions();
   const testConfigs = await apiGetTestConfigs();
+  const users = await apiGetUsers();
 
-  // Progress summary cards
-  ['Test1', 'Test2'].forEach(usr => {
-    let count = 0;
-    for (let m = 0; m < 12; m++) {
-      if (submissions[`${usr}_${yearFilter}_${m}`]) count++;
-    }
-    const pct = Math.round((count / 12) * 100);
-    const cardStat = document.getElementById(`admin-card-stat-${usr.toLowerCase()}`);
-    const progress = document.getElementById(`admin-progress-${usr.toLowerCase()}`);
-    if (cardStat) cardStat.textContent = `${count} / 12 เดือน (${pct}%)`;
-    if (progress) progress.style.width = `${pct}%`;
-  });
-
-  // Table header
   const thead = document.getElementById('admin-table-header');
   thead.innerHTML = `
     <th class="py-3 px-4">ประจำเดือน</th>
@@ -499,18 +585,24 @@ async function renderAdminResultsTable() {
     <th class="py-3 px-4 text-center">จัดการ</th>
   `;
 
-  const targetUsers = (userFilter === 'ALL') ? ['Test1', 'Test2'] : [userFilter];
-  const targetMonths = (monthFilter === 'ALL') ? Array.from({length: 12}, (_, i) => i) : [parseInt(monthFilter)];
+  // Get active user keys
+  let targetUsers = [];
+  if (userFilter === 'ALL') {
+    targetUsers = users.map(u => u.username || u.email?.split('@')[0]);
+  } else {
+    targetUsers = [userFilter];
+  }
 
+  const targetMonths = (monthFilter === 'ALL') ? Array.from({length: 12}, (_, i) => i) : [parseInt(monthFilter)];
   const tbody = document.getElementById('admin-results-table-body');
   tbody.innerHTML = '';
   let matchCount = 0;
 
   targetMonths.forEach(m => {
-    targetUsers.forEach(u => {
-      const key = `${u}_${yearFilter}_${m}`;
+    targetUsers.forEach(uKey => {
+      const key = `${uKey}_${yearFilter}_${m}`;
       const sub = submissions[key];
-      const userInfo = STATIC_USERS[u] || { name: u, code: u };
+      const userObj = users.find(x => (x.username === uKey || x.email?.split('@')[0] === uKey)) || { name: uKey, code: uKey };
 
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
@@ -528,8 +620,8 @@ async function renderAdminResultsTable() {
             <span class="text-xs text-slate-400 block">${yearFilter + 543}</span>
           </td>
           <td class="py-3 px-4 whitespace-nowrap">
-            <div class="font-semibold text-slate-800 text-xs">${userInfo.name}</div>
-            <div class="text-[11px] text-slate-400 font-mono">${userInfo.code}</div>
+            <div class="font-semibold text-slate-800 text-xs">${userObj.name}</div>
+            <div class="text-[11px] text-slate-400 font-mono">${userObj.code}</div>
           </td>
           ${testsCells}
           <td class="py-3 px-4 whitespace-nowrap text-xs text-slate-500 font-mono">
@@ -545,9 +637,9 @@ async function renderAdminResultsTable() {
 
         const editBtn = document.createElement('button');
         editBtn.className = 'p-1.5 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100 transition';
-        editBtn.title = 'แก้ไขผลนี้';
+        editBtn.title = 'แก้ไขผลนี้ (สิทธิ์ผู้ดูแลระบบ)';
         editBtn.innerHTML = '<i data-lucide="edit-2" class="w-3.5 h-3.5"></i>';
-        editBtn.onclick = () => openEntryModal(u, yearFilter, m, false);
+        editBtn.onclick = () => openEntryModal(uKey, yearFilter, m, false);
 
         const delBtn = document.createElement('button');
         delBtn.className = 'p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition';
@@ -573,8 +665,8 @@ async function renderAdminResultsTable() {
             <span class="text-xs text-slate-400 block">${yearFilter + 543}</span>
           </td>
           <td class="py-3 px-4 whitespace-nowrap">
-            <div class="font-semibold text-slate-500 text-xs">${userInfo.name}</div>
-            <div class="text-[11px] text-slate-400 font-mono">${userInfo.code}</div>
+            <div class="font-semibold text-slate-500 text-xs">${userObj.name}</div>
+            <div class="text-[11px] text-slate-400 font-mono">${userObj.code}</div>
           </td>
           ${emptyCells}
           <td class="py-3 px-4 whitespace-nowrap text-xs text-amber-600 font-medium">
@@ -589,7 +681,7 @@ async function renderAdminResultsTable() {
         const addBtn = document.createElement('button');
         addBtn.className = 'px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded transition';
         addBtn.textContent = 'บันทึกแทน';
-        addBtn.onclick = () => openEntryModal(u, yearFilter, m, false);
+        addBtn.onclick = () => openEntryModal(uKey, yearFilter, m, false);
         actionTd.appendChild(addBtn);
         tr.appendChild(actionTd);
       }
@@ -598,9 +690,140 @@ async function renderAdminResultsTable() {
     });
   });
 
-  document.getElementById('admin-results-count-text').textContent = `แสดงผล ${matchCount} รายการที่ส่งแล้ว`;
+  document.getElementById('admin-results-count-text').textContent = `แสดงผล ${matchCount} รายการที่บันทึกแล้ว`;
   if (window.lucide) {
     window.lucide.createIcons({ root: tbody });
+  }
+}
+
+// ============================================================================
+// User Management Controller (Admin Tab 3)
+// ============================================================================
+async function renderAdminUsersTable() {
+  const users = await apiGetUsers();
+  document.getElementById('admin-users-count-badge').textContent = users.length;
+
+  const tbody = document.getElementById('admin-users-table-body');
+  tbody.innerHTML = '';
+
+  users.forEach((u) => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
+
+    const isAdmin = (u.role === 'admin');
+    const roleBadge = isAdmin
+      ? '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i> ผู้ดูแลระบบ (Admin)</span>'
+      : '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200"><i data-lucide="user" class="w-3.5 h-3.5"></i> ผู้ใช้งานทั่วไป</span>';
+
+    tr.innerHTML = `
+      <td class="py-3.5 px-4 whitespace-nowrap">
+        <div class="font-bold text-slate-800 text-sm">${u.email || u.username}</div>
+        <div class="text-[11px] text-slate-400 font-mono">UID: ${u.uid?.substring(0, 10)}...</div>
+      </td>
+      <td class="py-3.5 px-4">
+        <div class="font-semibold text-slate-800 text-xs">${u.name}</div>
+        <div class="text-[11px] text-slate-500">${u.department || '-'} • ติดต่อ: ${u.contact || '-'}</div>
+      </td>
+      <td class="py-3.5 px-4 whitespace-nowrap font-mono text-xs font-semibold text-slate-700">
+        ${u.code || '-'}
+      </td>
+      <td class="py-3.5 px-4 whitespace-nowrap">
+        ${roleBadge}
+      </td>
+    `;
+
+    // Action buttons
+    const actTd = document.createElement('td');
+    actTd.className = 'py-3.5 px-4 whitespace-nowrap text-center';
+    const actWrap = document.createElement('div');
+    actWrap.className = 'flex items-center justify-center gap-2';
+
+    // Role toggle button
+    const toggleRoleBtn = document.createElement('button');
+    toggleRoleBtn.className = 'px-2.5 py-1 text-xs font-medium rounded-lg border transition ' + 
+      (isAdmin ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100');
+    toggleRoleBtn.textContent = isAdmin ? 'เปลี่ยนเป็น ผู้ใช้งาน' : 'แต่งตั้งเป็น Admin';
+    toggleRoleBtn.onclick = async () => {
+      const newRole = isAdmin ? 'user' : 'admin';
+      if (confirm(`ต้องการเปลี่ยนสิทธิ์ของ "${u.name}" เป็น "${newRole}" หรือไม่?`)) {
+        await apiUpdateUser(u.uid, { role: newRole });
+        showToast('อัปเดตสิทธิ์การใช้งานเรียบร้อยแล้ว');
+        renderAdminUsersTable();
+      }
+    };
+
+    // Delete user button
+    const delUserBtn = document.createElement('button');
+    delUserBtn.className = 'p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition';
+    delUserBtn.title = 'ลบผู้ใช้งานนี้';
+    delUserBtn.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>';
+    delUserBtn.onclick = async () => {
+      if (confirm(`คุณต้องการลบผู้ใช้งาน "${u.name}" (${u.email}) ออกจากระบบหรือไม่?`)) {
+        await apiDeleteUser(u.uid);
+        showToast('ลบผู้ใช้งานเรียบร้อยแล้ว');
+        renderAdminUsersTable();
+        loadAdminUsersDropdown();
+      }
+    };
+
+    actWrap.appendChild(toggleRoleBtn);
+    actWrap.appendChild(delUserBtn);
+    actTd.appendChild(actWrap);
+    tr.appendChild(actTd);
+
+    tbody.appendChild(tr);
+  });
+
+  if (window.lucide) {
+    window.lucide.createIcons({ root: tbody });
+  }
+}
+
+function openCreateUserModal() {
+  document.getElementById('form-user-create').reset();
+  document.getElementById('modal-user-create').classList.remove('hidden');
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+}
+
+function closeCreateUserModal() {
+  document.getElementById('modal-user-create').classList.add('hidden');
+}
+
+async function handleCreateUser(e) {
+  e.preventDefault();
+  const email = document.getElementById('new-user-email').value;
+  const password = document.getElementById('new-user-password').value;
+  const name = document.getElementById('new-user-name').value;
+  const code = document.getElementById('new-user-code').value;
+  const department = document.getElementById('new-user-department').value;
+  const contact = document.getElementById('new-user-contact').value;
+  const role = document.getElementById('new-user-role').value;
+
+  const btn = document.getElementById('btn-save-new-user');
+  btn.disabled = true;
+  btn.classList.add('opacity-70');
+
+  try {
+    await apiCreateUserByAdmin({
+      email,
+      password,
+      name,
+      code,
+      department,
+      contact,
+      role
+    });
+    showToast(`สร้างบัญชีผู้ใช้งาน ${email} สำเร็จเรียบร้อย`);
+    closeCreateUserModal();
+    renderAdminUsersTable();
+    loadAdminUsersDropdown();
+  } catch (err) {
+    alert(err.message || 'ไม่สามารถสร้างผู้ใช้งานได้');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-70');
   }
 }
 
@@ -628,7 +851,7 @@ async function renderAdminTestConfigsList() {
       typeBadge = '<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">รูปแบบ: ตัวเลข (Numeric)</span>';
       detailsHtml = `<div class="text-xs text-slate-500 mt-1">หน่วยวัด: <span class="font-semibold text-slate-700">${test.unit || 'ไม่ระบุหน่วย'}</span></div>`;
     } else {
-      typeBadge = '<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">รูปแบบ: พิมพ์ข้อความสั้นๆ (Short Text)</span>';
+      typeBadge = '<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">รูปแบบ: พิมพ์ข้อความสั้น (Short Text)</span>';
       detailsHtml = `<div class="text-xs text-slate-500 mt-1">ให้พิมพ์ตอบข้อความแบบกระชับ</div>`;
     }
 
@@ -721,7 +944,7 @@ async function openTestConfigModal(testId = null) {
     document.getElementById('cfg-test-options').value = (test.options || []).join(', ');
     document.getElementById('cfg-test-unit').value = test.unit || '';
   } else {
-    title.textContent = 'เพิ่มรายการ Test ใหม่';
+    title.textContent = 'เพิ่มรายการแบบทดสอบใหม่';
     document.getElementById('cfg-test-id').value = '';
     document.getElementById('cfg-test-key').value = `TEST_${String.fromCharCode(65 + tests.length)}`;
     document.getElementById('cfg-test-name').value = `Test ${String.fromCharCode(65 + tests.length)}`;
@@ -780,6 +1003,7 @@ async function openPdfModal(targetUser = 'ALL') {
   const year = parseInt(document.getElementById('admin-filter-year')?.value) || 2026;
   const submissions = await apiGetSubmissions();
   const testConfigs = await apiGetTestConfigs();
+  const users = await apiGetUsers();
 
   document.getElementById('pdf-doc-number').textContent = `DOC-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
   
@@ -787,39 +1011,37 @@ async function openPdfModal(targetUser = 'ALL') {
   const pad = n => n.toString().padStart(2, '0');
   document.getElementById('pdf-generated-date').textContent = `ออกเอกสารเมื่อ: ${pad(now.getDate())}/${pad(now.getMonth()+1)}/${year + 543} ${pad(now.getHours())}:${pad(now.getMinutes())} น.`;
 
-  if (targetUser !== 'ALL' && STATIC_USERS[targetUser]) {
-    const u = STATIC_USERS[targetUser];
+  if (targetUser !== 'ALL') {
+    const u = users.find(x => x.username === targetUser || x.email?.split('@')[0] === targetUser) || { name: targetUser, code: targetUser };
     document.getElementById('pdf-site-name').textContent = u.name;
     document.getElementById('pdf-site-code').textContent = `รหัสสมาชิก: ${u.code}`;
     document.getElementById('pdf-filter-label').textContent = `ข้อมูลเฉพาะหน่วยงาน: ${u.name}`;
   } else {
     document.getElementById('pdf-site-name').textContent = 'รายงานรวมทุกหน่วยงาน (All Participating Sites)';
-    document.getElementById('pdf-site-code').textContent = 'รหัสสมาชิก: ศูนย์ทดสอบ 1 & ศูนย์ทดสอบ 2';
+    document.getElementById('pdf-site-code').textContent = 'รหัสสมาชิก: รวมทุกศูนย์ทดสอบที่ลงทะเบียน';
     document.getElementById('pdf-filter-label').textContent = 'ครอบคลุมทุกหน่วยงานที่เข้าร่วมโครงการ';
   }
 
   document.getElementById('pdf-period-name').textContent = `ประจำปี ${year + 543} (${year})`;
 
-  // Build Table Header
   const headerRow = document.getElementById('pdf-table-header');
   headerRow.innerHTML = `
     <th class="p-2 border-r border-slate-200">เดือน</th>
     <th class="p-2 border-r border-slate-200">หน่วยงาน</th>
     ${testConfigs.map(t => `<th class="p-2 border-r border-slate-200">${t.name}</th>`).join('')}
-    <th class="p-2 border-r border-slate-200">วันที่ส่งผล</th>
+    <th class="p-2 border-r border-slate-200">วันที่บันทึกผล</th>
     <th class="p-2 text-center">สถานะ</th>
   `;
 
-  // Build Table Body
   const tbody = document.getElementById('pdf-table-body');
   tbody.innerHTML = '';
-  const usersToExport = (targetUser === 'ALL') ? ['Test1', 'Test2'] : [targetUser];
+  const usersToExport = (targetUser === 'ALL') ? users.map(u => u.username || u.email?.split('@')[0]) : [targetUser];
 
   for (let m = 0; m < 12; m++) {
-    usersToExport.forEach(u => {
-      const key = `${u}_${year}_${m}`;
+    usersToExport.forEach(uKey => {
+      const key = `${uKey}_${year}_${m}`;
       const sub = submissions[key];
-      const userInfo = STATIC_USERS[u] || { name: u, code: u };
+      const userInfo = users.find(x => (x.username === uKey || x.email?.split('@')[0] === uKey)) || { name: uKey, code: uKey };
 
       const tr = document.createElement('tr');
       tr.className = 'border-b border-slate-200';
@@ -844,7 +1066,7 @@ async function openPdfModal(targetUser = 'ALL') {
           <td class="p-2 border-r border-slate-200 text-slate-500">${userInfo.name}</td>
           ${emptyCells}
           <td class="p-2 border-r border-slate-200 text-slate-400 text-center">-</td>
-          <td class="p-2 text-center text-amber-600 font-semibold">รอส่งผล</td>
+          <td class="p-2 text-center text-amber-600 font-semibold">รอการรายงาน</td>
         `;
       }
 
@@ -862,9 +1084,6 @@ function closePdfModal() {
   document.getElementById('modal-pdf').classList.add('hidden');
 }
 
-/**
- * Download real PDF using html2pdf.js
- */
 function downloadRealPdf() {
   const element = document.getElementById('pdf-printable-area');
   const opt = {
@@ -897,9 +1116,12 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modal-entry-cancel-btn')?.addEventListener('click', closeEntryModal);
   document.getElementById('test-submission-form')?.addEventListener('submit', handleSaveSubmission);
 
-  // Admin Portal events
+  // Admin Portal Navigation Tabs
   document.getElementById('admin-tab-results-btn')?.addEventListener('click', () => switchAdminTab('results'));
   document.getElementById('admin-tab-config-btn')?.addEventListener('click', () => switchAdminTab('config'));
+  document.getElementById('admin-tab-users-btn')?.addEventListener('click', () => switchAdminTab('users'));
+
+  // Admin Results Filter events
   document.getElementById('admin-filter-user')?.addEventListener('change', renderAdminResultsTable);
   document.getElementById('admin-filter-year')?.addEventListener('change', renderAdminResultsTable);
   document.getElementById('admin-filter-month')?.addEventListener('change', renderAdminResultsTable);
@@ -908,8 +1130,6 @@ window.addEventListener('DOMContentLoaded', () => {
     openPdfModal(userFilter);
   });
   document.getElementById('admin-export-pdf-all-btn')?.addEventListener('click', () => openPdfModal('ALL'));
-  document.getElementById('pdf-site-btn-test1')?.addEventListener('click', () => openPdfModal('Test1'));
-  document.getElementById('pdf-site-btn-test2')?.addEventListener('click', () => openPdfModal('Test2'));
 
   // Admin Test Config events
   document.getElementById('admin-add-test-btn')?.addEventListener('click', () => openTestConfigModal(null));
@@ -918,27 +1138,16 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cfg-test-type')?.addEventListener('change', toggleConfigOptionFields);
   document.getElementById('form-test-config')?.addEventListener('submit', handleSaveTestConfig);
 
+  // Admin User Management events
+  document.getElementById('admin-add-user-btn')?.addEventListener('click', openCreateUserModal);
+  document.getElementById('modal-user-close-btn')?.addEventListener('click', closeCreateUserModal);
+  document.getElementById('modal-user-cancel-btn')?.addEventListener('click', closeCreateUserModal);
+  document.getElementById('form-user-create')?.addEventListener('submit', handleCreateUser);
+
   // PDF Modal events
   document.getElementById('pdf-close-btn')?.addEventListener('click', closePdfModal);
   document.getElementById('pdf-print-btn')?.addEventListener('click', () => window.print());
   document.getElementById('pdf-download-file-btn')?.addEventListener('click', downloadRealPdf);
-
-  // Seed Firebase utility
-  document.getElementById('admin-seed-firebase-btn')?.addEventListener('click', async () => {
-    if (!isFirebaseConfigured) {
-      alert('ยังไม่ได้ใส่ Firebase Config ในไฟล์ .env หรือยังไม่ได้เชื่อมต่อ Firebase ค่ะ\nกรุณานำค่าจาก Firebase Console มาใส่ใน .env ก่อนนะคะ');
-      return;
-    }
-    if (confirm('ต้องการนำข้อมูลตัวอย่าง Test A, B, C และผลทดสอบส่งขึ้น Cloud Firestore หรือไม่?')) {
-      try {
-        await apiSeedFirestore();
-        showToast('Seed ข้อมูลขึ้น Cloud Firestore สำเร็จแล้ว!');
-        renderAdminResultsTable();
-      } catch (err) {
-        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ Firestore: ' + err.message);
-      }
-    }
-  });
 
   // Start app
   initApp();
