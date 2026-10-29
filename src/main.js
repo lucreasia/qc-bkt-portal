@@ -1,5 +1,5 @@
 // ============================================================================
-// Main Application Controller (2-Layer Test Architecture)
+// Main Application Controller (Preview Track Enabled)
 // ============================================================================
 
 import {
