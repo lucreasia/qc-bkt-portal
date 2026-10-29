@@ -202,34 +202,45 @@ const DEFAULT_LOCAL_SUBMISSIONS = {
 // ============================================================================
 
 /**
- * Login function (Converts Username -> internal email if needed)
+ * Login function (Converts Username -> internal email if needed, with auto-fallback)
  */
 export async function apiLogin(usernameInput, password) {
   const username = usernameInput.trim();
 
+  // 1. Try Firebase Auth first
   if (isFirebaseConfigured && auth && db) {
-    // Firebase Auth Mode
     const email = username.includes('@') ? username : `${username.toLowerCase()}@portal.local`;
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-    
-    if (userDoc.exists()) {
-      return { uid: userCredential.user.uid, ...userDoc.data() };
-    } else {
-      // Fallback user object from Auth
-      return {
-        uid: userCredential.user.uid,
-        username,
-        email: userCredential.user.email,
-        name: username,
-        role: username.toLowerCase() === 'admin' ? 'admin' : 'user'
-      };
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      
+      if (userDoc.exists()) {
+        return { uid: userCredential.user.uid, ...userDoc.data() };
+      } else {
+        return {
+          uid: userCredential.user.uid,
+          username,
+          email: userCredential.user.email,
+          name: username,
+          role: username.toLowerCase() === 'admin' ? 'admin' : 'user'
+        };
+      }
+    } catch (firebaseErr) {
+      console.warn('[Firebase Auth] Sign in failed, checking local demo fallback:', firebaseErr.code);
+      // If user doesn't exist yet in Firebase Authentication, check default prototype credentials!
+      const matchedKey = Object.keys(LOCAL_USERS).find(k => k.toLowerCase() === username.toLowerCase());
+      if (matchedKey && password === matchedKey) {
+        localStorage.setItem('portal_current_user', JSON.stringify(LOCAL_USERS[matchedKey]));
+        return LOCAL_USERS[matchedKey];
+      }
+      throw new Error('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง (กรุณาตรวจสอบ Username และ Password)');
     }
   } else {
-    // Local / Demo Mode (Test1/Test1, Test2/Test2, admin/admin)
-    if (LOCAL_USERS[username] && password === username) {
-      localStorage.setItem('portal_current_user', JSON.stringify(LOCAL_USERS[username]));
-      return LOCAL_USERS[username];
+    // 2. Local / Demo Mode
+    const matchedKey = Object.keys(LOCAL_USERS).find(k => k.toLowerCase() === username.toLowerCase());
+    if (matchedKey && password === matchedKey) {
+      localStorage.setItem('portal_current_user', JSON.stringify(LOCAL_USERS[matchedKey]));
+      return LOCAL_USERS[matchedKey];
     }
     throw new Error('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง');
   }
