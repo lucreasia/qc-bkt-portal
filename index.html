@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบรายงานผลการทดสอบประจำเดือน (Monthly Test Result Portal)</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- html2pdf.js for true PDF file generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Prompt', 'Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Prompt', 'Inter', sans-serif;
+      background-color: #f8fafc;
+      color: #1e293b;
+    }
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #pdf-printable-area, #pdf-printable-area * {
+        visibility: visible;
+      }
+      #pdf-printable-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 20px;
+        background: white;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-sky-100 selection:text-sky-700">
+
+  <!-- Production App Navbar (No Demo Switcher Bar) -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
+            <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h1 class="text-base sm:text-lg font-bold text-slate-800 leading-tight">
+              ระบบรายงานผลการทดสอบประจำเดือน
+            </h1>
+            <p class="text-xs text-slate-500 font-normal">Monthly Quality Assessment & Test Result Portal</p>
+          </div>
+        </div>
+
+        <div id="nav-user-info" class="flex items-center gap-3">
+          <!-- Injected by JS -->
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- Toast Notification Box -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ------------------------------------------------------------- -->
+    <!-- VIEW 1: LOGIN SCREEN (Production Strict Credentials)           -->
+    <!-- ------------------------------------------------------------- -->
+    <div id="view-login" class="hidden max-w-md mx-auto my-12">
+      <div class="bg-white p-8 rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100">
+        <div class="text-center mb-8">
+          <div class="w-14 h-14 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+            <i data-lucide="shield-check" class="w-7 h-7"></i>
+          </div>
+          <h2 class="text-2xl font-bold text-slate-800">เข้าสู่ระบบ</h2>
+          <p class="text-sm text-slate-500 mt-1">กรอกชื่อผู้ใช้งานและรหัสผ่านเพื่อเข้าใช้งานระบบ</p>
+        </div>
+
+        <form id="login-form" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">ชื่อผู้ใช้งาน (Username หรือ อีเมล)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <i data-lucide="user" class="w-4 h-4"></i>
+              </span>
+              <input type="text" id="login-username" required placeholder="เช่น Test1, Test2 หรือ admin" class="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">รหัสผ่าน (Password)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <i data-lucide="key-round" class="w-4 h-4"></i>
+              </span>
+              <input type="password" id="login-password" required placeholder="••••••••" class="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm">
+            </div>
+          </div>
+
+          <div id="login-error" class="hidden text-xs text-rose-600 bg-rose-50 border border-rose-200 p-2.5 rounded-lg">
+            ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง
+          </div>
+
+          <button type="submit" id="login-submit-btn" class="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-xl shadow-md shadow-sky-600/20 transition flex items-center justify-center gap-2">
+            <span>เข้าสู่ระบบ</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
+        </form>
+
+        <div class="mt-8 pt-4 border-t border-slate-100 text-center">
+          <p class="text-[11px] text-slate-400">
+            ระบบความปลอดภัยมาตรฐานการเชื่อมต่อ HTTPS & Firebase Authentication
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------------- -->
+    <!-- VIEW 2: USER PORTAL                                           -->
+    <!-- ------------------------------------------------------------- -->
+    <div id="view-user" class="hidden space-y-6">
+
+      <!-- Organization Info Card -->
+      <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div class="flex items-start gap-4">
+          <div class="w-14 h-14 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center flex-shrink-0 border border-sky-100">
+            <i data-lucide="building-2" class="w-7 h-7"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 id="u-org-name" class="text-xl font-bold text-slate-800">ศูนย์ทดสอบสาขา 1</h2>
+              <span id="u-member-id" class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-semibold tracking-wide border border-slate-200 font-mono">LAB-001</span>
+            </div>
+            <p id="u-org-address" class="text-xs text-slate-500 mt-1">แผนกเคมีคลินิกและโลหิตวิทยา</p>
+            <div class="flex flex-wrap gap-4 mt-3 text-xs text-slate-600">
+              <span class="flex items-center gap-1.5"><i data-lucide="user-check" class="w-3.5 h-3.5 text-slate-400"></i> <span id="u-contact-person">เจ้าหน้าที่ผู้รับผิดชอบ</span></span>
+              <span class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i> รอบรายงาน: ประจำปี <span id="u-current-year">2569 (2026)</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 self-stretch md:self-auto justify-around md:justify-start">
+          <div class="text-center px-3">
+            <div id="u-stat-submitted" class="text-2xl font-bold text-emerald-600">0</div>
+            <div class="text-[11px] text-slate-500 font-medium">ลงผลแล้ว</div>
+          </div>
+          <div class="h-8 w-px bg-slate-200"></div>
+          <div class="text-center px-3">
+            <div id="u-stat-pending" class="text-2xl font-bold text-amber-500">12</div>
+            <div class="text-[11px] text-slate-500 font-medium">รอส่งผล</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Year Selector & Section Title -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-bold text-slate-800">รายการรอบลงผลประจำเดือน</h3>
+          <p class="text-xs text-slate-500">เลือกเดือนที่ต้องการส่งผลการทดสอบ หรือคลิกดูผลย้อนหลัง</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs font-semibold text-slate-600">เลือกปี:</label>
+          <select id="u-year-select" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-sky-500">
+            <option value="2026">2569 (2026)</option>
+            <option value="2025">2568 (2025)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Month Cards Grid (12 Months) -->
+      <div id="u-months-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <!-- Injected by main.js -->
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------------- -->
+    <!-- VIEW 3: ENTRY MODAL                                           -->
+    <!-- ------------------------------------------------------------- -->
+    <div id="modal-entry" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8">
+        
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <span id="modal-mode-badge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-700 uppercase tracking-wider">
+              ลงผลการทดสอบ
+            </span>
+            <h3 id="modal-entry-title" class="text-lg font-bold text-slate-800 mt-1">
+              แบบบันทึกผลการทดสอบประจำเดือน
+            </h3>
+            <p id="modal-entry-subtitle" class="text-xs text-slate-500">หน่วยงาน: Test1 • รอบประจำเดือน</p>
+          </div>
+          <button id="modal-entry-close-btn" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 flex items-center justify-center transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <form id="test-submission-form" class="p-6 space-y-6">
+          <input type="hidden" id="entry-month-key">
+          
+          <div class="bg-amber-50 border border-amber-200/80 rounded-xl p-3.5 flex items-start gap-3 text-xs text-amber-800">
+            <i data-lucide="info" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+            <div>
+              กรุณาตรวจสอบความถูกต้องของผลการทดสอบก่อนกดยืนยันบันทึก ระบบจะลงเวลาที่บันทึกผลไว้เป็นหลักฐานอัตโนมัติ
+            </div>
+          </div>
+
+          <!-- Dynamic Test Fields (Test A, B, C...) -->
+          <div id="dynamic-test-fields" class="space-y-5"></div>
+
+          <!-- Remarks -->
+          <div class="pt-2 border-t border-slate-100">
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              หมายเหตุเพิ่มเติม (ถ้ามี)
+            </label>
+            <textarea id="entry-remarks" rows="2" placeholder="ระบุข้อมูลเพิ่มเติม ปัญหาหรือข้อสังเกตเกี่ยวกับการทดสอบ..." class="w-full text-sm border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-sky-500 focus:border-sky-500"></textarea>
+          </div>
+
+          <div id="entry-history-meta" class="hidden text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200 flex items-center justify-between">
+            <span id="entry-submitted-at">บันทึกเมื่อ: -</span>
+            <span id="entry-submitted-by">ผู้บันทึก: -</span>
+          </div>
+
+          <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+            <button type="button" id="modal-entry-cancel-btn" class="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-xl transition">
+              ยกเลิก
+            </button>
+            <button type="submit" id="btn-save-entry" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl shadow-md shadow-emerald-600/20 transition flex items-center gap-2">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span>บันทึกผลการทดสอบ</span>
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------------- -->
+    <!-- VIEW 4: ADMIN PORTAL                                          -->
+    <!-- ------------------------------------------------------------- -->
+    <div id="view-admin" class="hidden space-y-6">
+
+      <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl p-6 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30 mb-2">
+            <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+            ADMINISTRATION CONSOLE
+          </div>
+          <h2 class="text-xl font-bold">ระบบบริหารจัดการผลการทดสอบ (หลังบ้าน)</h2>
+          <p class="text-xs text-slate-300 mt-1">ตรวจสอบผลการทดสอบของแต่ละหน่วยงาน กำหนดรายการแบบทดสอบ และส่งออกรายงาน</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="admin-export-pdf-all-btn" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 backdrop-blur transition flex items-center gap-2">
+            <i data-lucide="file-text" class="w-4 h-4 text-rose-400"></i>
+            <span>ส่งออกรายงานรวม (PDF)</span>
+          </button>
+          <button id="admin-seed-firebase-btn" class="px-3 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 text-xs font-medium rounded-xl border border-indigo-400/30 transition flex items-center gap-1.5" title="ส่งข้อมูลตัวอย่างขึ้น Cloud Firestore">
+            <i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i>
+            <span>Seed ขึ้น Firebase</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex border-b border-slate-200 gap-4">
+        <button id="admin-tab-results-btn" class="pb-3 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition">
+          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+          <span>ดูผลการทดสอบแยกตามหน่วยงาน</span>
+        </button>
+        <button id="admin-tab-config-btn" class="pb-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 transition">
+          <i data-lucide="sliders" class="w-4 h-4"></i>
+          <span>กำหนดรายการ Test และรูปแบบการลงผล</span>
+          <span id="admin-tests-count-badge" class="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-xs font-mono">3</span>
+        </button>
+      </div>
+
+      <!-- TAB 1: RESULTS VIEW -->
+      <div id="admin-tab-results" class="space-y-6">
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div class="flex flex-wrap items-center gap-3">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">เลือกหน่วยงาน</label>
+              <select id="admin-filter-user" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500">
+                <option value="ALL">-- ทุกหน่วยงาน --</option>
+                <option value="Test1">Test1: ศูนย์ทดสอบสาขา 1 (LAB-001)</option>
+                <option value="Test2">Test2: ศูนย์ทดสอบสาขา 2 (LAB-002)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">เลือกปี</label>
+              <select id="admin-filter-year" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500">
+                <option value="2026">2569 (2026)</option>
+                <option value="2025">2568 (2025)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">เลือกเดือน</label>
+              <select id="admin-filter-month" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500">
+                <option value="ALL">-- แสดงครบทุกเดือน (12 เดือน) --</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button id="admin-quick-pdf-btn" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+              <i data-lucide="file-down" class="w-4 h-4 text-rose-600"></i>
+              <span>ส่งออกเป็น PDF (หน้าปัจจุบัน)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-700 font-mono">LAB-001</span>
+                <h4 class="text-base font-bold text-slate-800 mt-1">Test1: ศูนย์ทดสอบสาขา 1</h4>
+                <p class="text-xs text-slate-500">แผนกเคมีคลินิกและโลหิตวิทยา</p>
+              </div>
+              <button id="pdf-site-btn-test1" class="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 border border-slate-200 px-2 py-1 rounded-lg">
+                <i data-lucide="printer" class="w-3.5 h-3.5"></i> PDF หน่วยนี้
+              </button>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <div class="text-slate-500">ความคืบหน้าการส่งผล:</div>
+              <div id="admin-card-stat-test1" class="font-bold text-slate-800">0 / 12 เดือน</div>
+            </div>
+            <div class="w-full bg-slate-100 h-2 rounded-full mt-1.5 overflow-hidden">
+              <div id="admin-progress-test1" class="bg-sky-500 h-2 rounded-full" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-mono">LAB-002</span>
+                <h4 class="text-base font-bold text-slate-800 mt-1">Test2: ศูนย์ทดสอบสาขา 2</h4>
+                <p class="text-xs text-slate-500">แผนกจุลชีววิทยาและภูมิคุ้มกันวิทยา</p>
+              </div>
+              <button id="pdf-site-btn-test2" class="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 border border-slate-200 px-2 py-1 rounded-lg">
+                <i data-lucide="printer" class="w-3.5 h-3.5"></i> PDF หน่วยนี้
+              </button>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <div class="text-slate-500">ความคืบหน้าการส่งผล:</div>
+              <div id="admin-card-stat-test2" class="font-bold text-slate-800">0 / 12 เดือน</div>
+            </div>
+            <div class="w-full bg-slate-100 h-2 rounded-full mt-1.5 overflow-hidden">
+              <div id="admin-progress-test2" class="bg-emerald-500 h-2 rounded-full" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Master Results Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
+            <div>
+              <h3 class="text-sm font-bold text-slate-800">ตารางผลการทดสอบแยกตามหน่วยงานและประจำเดือน</h3>
+              <p class="text-xs text-slate-500">แสดงผลการทดสอบที่บันทึกแล้วแบบ Real-time</p>
+            </div>
+            <span id="admin-results-count-text" class="text-xs font-medium text-slate-500">
+              พบ 0 รายการ
+            </span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm border-collapse">
+              <thead>
+                <tr id="admin-table-header" class="bg-slate-100/70 text-slate-600 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                  <th class="py-3 px-4">ประจำเดือน</th>
+                  <th class="py-3 px-4">หน่วยงาน / รหัส</th>
+                  <!-- Test Columns -->
+                  <th class="py-3 px-4">วันที่บันทึก</th>
+                  <th class="py-3 px-4 text-center">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="admin-results-table-body" class="divide-y divide-slate-100 text-slate-700">
+                <!-- Injected by main.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB 2: CONFIG TESTS -->
+      <div id="admin-tab-config" class="hidden space-y-6">
+
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div>
+            <h3 class="text-base font-bold text-slate-800">ตั้งค่าแบบทดสอบ (Test Configurations)</h3>
+            <p class="text-xs text-slate-500 mt-0.5">กำหนดว่ามี Test อะไรบ้าง และเลือกว่าต้องการให้ผู้ใช้งานลงผลเป็น <strong>ตัวเลือก (Options)</strong>, <strong>ตัวเลข (Numeric)</strong> หรือ <strong>ข้อความสั้นๆ (Short Text)</strong></p>
+          </div>
+          <button id="admin-add-test-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-2">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            <span>เพิ่มรายการ Test ใหม่</span>
+          </button>
+        </div>
+
+        <div id="admin-tests-list" class="space-y-3">
+          <!-- Injected by main.js -->
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ================= MODAL: CONFIGURE TEST ================= -->
+  <div id="modal-test-config" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
+      
+      <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div>
+          <h3 id="modal-test-config-title" class="text-base font-bold text-slate-800">ตั้งค่าแบบทดสอบ</h3>
+          <p class="text-xs text-slate-500">กำหนดชื่อและรูปแบบคำตอบสำหรับการลงผล</p>
+        </div>
+        <button id="modal-test-config-close-btn" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 flex items-center justify-center transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="form-test-config" class="p-6 space-y-4">
+        <input type="hidden" id="cfg-test-id">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">รหัส / Key (ภาษาอังกฤษ เช่น TEST_D)</label>
+          <input type="text" id="cfg-test-key" required placeholder="เช่น TEST_D" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 font-mono focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">ชื่อรายการทดสอบ (Test Name)</label>
+          <input type="text" id="cfg-test-name" required placeholder="เช่น Test A, ระดับกลูโคส" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">คำอธิบายสั้นๆ (Description)</label>
+          <input type="text" id="cfg-test-desc" placeholder="เช่น การตรวจประเมินคุณภาพแอนติบอดี" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">วิธีการลงผล (Input Type)</label>
+          <select id="cfg-test-type" class="w-full text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+            <option value="select">ตัวเลือก (Select / Dropdown Choices)</option>
+            <option value="number">ใส่เป็นตัวเลข (Numeric Value)</option>
+            <option value="text">พิมพ์ข้อความสั้นๆ ตอบ (Short Text)</option>
+          </select>
+        </div>
+
+        <div id="cfg-box-options" class="space-y-1">
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">รายการตัวเลือก (คั่นด้วยเครื่องหมายจุลภาค ,)</label>
+          <input type="text" id="cfg-test-options" placeholder="Positive, Negative, Borderline" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+          <p class="text-[11px] text-slate-400">พิมพ์ตัวเลือกแต่ละข้อคั่นด้วยเครื่องหมายคอมม่า (,) เช่น Positive, Negative</p>
+        </div>
+
+        <div id="cfg-box-unit" class="hidden space-y-1">
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">หน่วยวัด (Unit) (ถ้ามี)</label>
+          <input type="text" id="cfg-test-unit" placeholder="เช่น mg/dL, IU/mL, % หรือ ครั้ง/นาที" class="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+          <button type="button" id="modal-test-config-cancel-btn" class="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-xl transition">
+            ยกเลิก
+          </button>
+          <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            <span>บันทึกการตั้งค่า</span>
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: PDF EXPORT ================= -->
+  <div id="modal-pdf" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
+      
+      <div class="px-6 py-3.5 bg-slate-900 text-white flex items-center justify-between no-print">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+          <h3 class="text-sm font-bold">เอกสารรายงานผลการทดสอบ (PDF Report)</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="pdf-print-btn" class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+            <span>พิมพ์ / บันทึกผ่านเบราว์เซอร์</span>
+          </button>
+          <button id="pdf-download-file-btn" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>ดาวน์โหลดไฟล์ PDF จริง</span>
+          </button>
+          <button id="pdf-close-btn" class="w-7 h-7 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center transition ml-2">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-8 sm:p-12 bg-slate-100 max-h-[80vh] overflow-y-auto">
+        <div id="pdf-printable-area" class="bg-white p-8 sm:p-10 rounded-xl shadow-md border border-slate-200 text-slate-800 space-y-6 max-w-3xl mx-auto">
+          
+          <div class="border-b-2 border-slate-800 pb-5 flex justify-between items-start">
+            <div>
+              <div class="text-xs font-bold tracking-widest text-slate-400 uppercase">OFFICIAL REPORT</div>
+              <h1 class="text-xl sm:text-2xl font-bold text-slate-900">ใบรายงานผลการทดสอบประจำเดือน</h1>
+              <p class="text-xs text-slate-500 mt-1">ระบบประเมินและติดตามผลการทดสอบทางห้องปฏิบัติการ</p>
+            </div>
+            <div class="text-right text-xs">
+              <div class="font-mono font-bold text-slate-700" id="pdf-doc-number">DOC-2026-0042</div>
+              <div class="text-slate-400 mt-0.5" id="pdf-generated-date">พิมพ์เมื่อ: -</div>
+            </div>
+          </div>
+
+          <div id="pdf-site-info-box" class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg text-xs border border-slate-200">
+            <div>
+              <span class="text-slate-400 block font-medium">หน่วยงานผู้ส่งผล:</span>
+              <span id="pdf-site-name" class="font-bold text-slate-800 text-sm">Test1: ศูนย์ทดสอบสาขา 1</span>
+              <span id="pdf-site-code" class="text-slate-500 block">รหัสสมาชิก: LAB-001</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block font-medium">รอบการประเมิน:</span>
+              <span id="pdf-period-name" class="font-bold text-slate-800 text-sm">ประจำปี 2569</span>
+              <span id="pdf-filter-label" class="text-slate-500 block">ข้อมูลครบทุกรอบเดือน</span>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">สรุปรายการผลการทดสอบ (Test Results Summary)</h4>
+            <table class="w-full text-xs text-left border-collapse border border-slate-200">
+              <thead>
+                <tr id="pdf-table-header" class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                  <th class="p-2.5 border-r border-slate-200">เดือน</th>
+                  <th class="p-2.5 border-r border-slate-200">หน่วยงาน</th>
+                  <!-- Dynamic test columns -->
+                  <th class="p-2.5 border-r border-slate-200">วันที่ส่งผล</th>
+                  <th class="p-2.5">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody id="pdf-table-body" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+
+          <div class="pt-4 border-t border-slate-200 grid grid-cols-2 gap-6 text-xs">
+            <div>
+              <span class="font-bold text-slate-700 block mb-1">หมายเหตุของระบบ:</span>
+              <p class="text-slate-500 leading-relaxed text-[11px]">
+                เอกสารนี้เป็นรายงานสรุปผลการทดสอบที่บันทึกผ่านระบบอิเล็กทรอนิกส์ ข้อมูลทั้งหมดได้รับการบันทึกและตรวจสอบความถูกต้องตามเกณฑ์มาตรฐาน
+              </p>
+            </div>
+            <div class="flex flex-col items-center justify-end text-center pt-8">
+              <div class="w-40 border-b border-slate-400 mb-1"></div>
+              <span class="text-[11px] text-slate-600 font-medium">( ลงชื่อผู้ตรวจสอบ / นายทะเบียน )</span>
+              <span class="text-[10px] text-slate-400">ระบบรายงานผลการทดสอบอัตโนมัติ</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Entry Script (Vite ESM) -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

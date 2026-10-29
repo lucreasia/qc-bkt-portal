@@ -1,0 +1,19 @@
+{
+  "name": "monthly-test-portal",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^12.12.1",
+    "html2pdf.js": "^0.10.3",
+    "lucide": "^1.16.0"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}
