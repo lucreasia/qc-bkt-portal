@@ -57,12 +57,9 @@ export function showToast(message, type = 'success') {
 }
 
 // ============================================================================
-// Core Initialization & Routing
+// Core Initialization & Routing (Error-Safe)
 // ============================================================================
 export async function initApp() {
-  currentUser = await apiGetCurrentUser();
-  cachedMonthlyLots = await apiGetMonthlyLots();
-
   const viewLogin = document.getElementById('view-login');
   const viewUser = document.getElementById('view-user');
   const viewAdmin = document.getElementById('view-admin');
@@ -72,7 +69,15 @@ export async function initApp() {
   viewUser.classList.add('hidden');
   viewAdmin.classList.add('hidden');
 
+  try {
+    currentUser = await apiGetCurrentUser();
+  } catch (err) {
+    console.warn('apiGetCurrentUser notice:', err);
+    currentUser = null;
+  }
+
   if (!currentUser) {
+    // Show Login View Immediately
     viewLogin.classList.remove('hidden');
     navUserInfo.innerHTML = `
       <div class="text-xs text-slate-500 flex items-center gap-1.5">
