@@ -19,6 +19,8 @@ import {
   apiSaveSubmission,
   apiDeleteSubmission,
   apiInvalidateCache,
+  apiAddAuditLog,
+  apiGetAuditLogs,
   isFirebaseConfigured
 } from './firebase.js';
 
@@ -66,6 +68,18 @@ export function populateDynamicYearSelect(selectElement, allowNextYear = false) 
 let currentUser = null;
 let cachedUsersList = [];
 let cachedMonthlyLots = {};
+let cachedAuditLogs = [];
+
+// Helper to record audit logs without throwing
+export function logAuditEvent(action, category, target, details) {
+  apiAddAuditLog({
+    action,
+    category,
+    target,
+    details,
+    actor: currentUser
+  });
+}
 
 // ============================================================================
 // UI Helper: Toast Notifications
@@ -186,6 +200,12 @@ function setupLoginController() {
     try {
       const user = await apiLogin(username, password);
       showToast(`เข้าสู่ระบบสำเร็จ: ${user.name || user.username}`);
+      logAuditEvent(
+        'USER_LOGIN',
+        'AUTH',
+        user.username || user.email,
+        `เข้าสู่ระบบสำเร็จในฐานะ ${user.role === 'admin' ? 'ผู้ดูแลระบบ (Admin)' : 'ผู้ใช้งานห้องปฏิบัติการ'}`
+      );
       initApp();
     } catch (err) {
       errBox.textContent = err.message || 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง';
@@ -643,9 +663,17 @@ async function handleSaveSubmission(event) {
     submittedAt: timeStamp
   };
 
+  const isEdit = Boolean(currentEditingSubmission);
   await apiSaveSubmission(monthKey, payload);
   closeEntryModal();
   showToast(`บันทึกผลการทดสอบประจำเดือน ${MONTH_NAMES[monthIndex]} สำเร็จ`);
+
+  logAuditEvent(
+    isEdit ? 'SUBMISSION_UPDATE' : 'SUBMISSION_CREATE',
+    'SUBMISSION',
+    `${username} (${year}-${monthIndex + 1})`,
+    `${currentUser.role === 'admin' ? '[ผู้ดูแลระบบแก้ไขแทน] ' : ''}${isEdit ? 'แก้ไขผลการทดสอบ' : 'ส่งผลการทดสอบใหม่'} ประจำเดือน ${MONTH_NAMES[monthIndex]} ${year + 543}`
+  );
 
   if (currentUser.role === 'admin') {
     renderAdminResultsTable();
@@ -1061,6 +1089,12 @@ async function renderAdminResultsTable() {
           if (confirm('คุณต้องการลบข้อมูลผลการทดสอบนี้หรือไม่?')) {
             await apiDeleteSubmission(key);
             showToast('ลบรายการผลการทดสอบเรียบร้อยแล้ว');
+            logAuditEvent(
+              'SUBMISSION_DELETE',
+              'SUBMISSION',
+              `${uKey} (${yearFilter}-${m + 1})`,
+              `ลบผลการทดสอบของ ${userObj.name} ประจำเดือน ${MONTH_NAMES[m]} ${yearFilter + 543}`
+            );
             renderAdminResultsTable();
           }
         };
@@ -1226,6 +1260,12 @@ async function handleSaveLotAnswers() {
 
   await apiSaveMonthlyLot(lotKey, payload);
   showToast(`บันทึกข้อมูล Lot และเฉลยประจำเดือน ${MONTH_NAMES[m]} ${y + 543} สำเร็จแล้ว!`);
+  logAuditEvent(
+    'LOT_SAVE',
+    'LOT',
+    lotNumber || lotKey,
+    `กำหนด/อัปเดตหมายเลข Lot และเกณฑ์เฉลยประจำเดือน ${MONTH_NAMES[m]} ${y + 543}`
+  );
   renderAdminResultsTable();
 }
 
@@ -1286,6 +1326,12 @@ async function renderAdminTestConfigsList() {
       if (confirm(`คุณต้องการลบโครงสร้างแบบทดสอบ "${test.name}" หรือไม่?`)) {
         await apiDeleteTestConfig(test.id);
         showToast(`ลบรายการ ${test.name} เรียบร้อยแล้ว`);
+        logAuditEvent(
+          'CONFIG_DELETE',
+          'CONFIG',
+          test.name,
+          `ลบโครงสร้างแบบทดสอบ ${test.name} [${test.key}] ออกจากระบบ`
+        );
         renderAdminTestConfigsList();
         renderAdminResultsTable();
         renderAdminLotAnswersConfig();
@@ -1440,6 +1486,12 @@ async function handleSaveTestConfig(event) {
 
   await apiSaveTestConfig(config);
   showToast(`บันทึกโครงสร้างแบบทดสอบ ${name} เรียบร้อยแล้ว`);
+  logAuditEvent(
+    testId ? 'CONFIG_UPDATE' : 'CONFIG_CREATE',
+    'CONFIG',
+    name,
+    `${testId ? 'แก้ไข' : 'สร้างใหม่'} โครงสร้างแบบทดสอบ ${name} [${key}]`
+  );
   closeTestConfigModal();
   renderAdminTestConfigsList();
   renderAdminResultsTable();
@@ -1496,6 +1548,12 @@ async function renderAdminUsersTable() {
       if (confirm(`ต้องการเปลี่ยนสิทธิ์ของ "${u.name}" เป็น "${newRole}" หรือไม่?`)) {
         await apiUpdateUser(u.uid, { role: newRole });
         showToast('อัปเดตสิทธิ์การใช้งานเรียบร้อยแล้ว');
+        logAuditEvent(
+          'USER_ROLE_CHANGE',
+          'USER',
+          u.username || u.email,
+          `เปลี่ยนสิทธิ์ของ ${u.name} เป็น ${newRole === 'admin' ? 'ผู้ดูแลระบบ (Admin)' : 'ผู้ใช้งานทั่วไป'}`
+        );
         renderAdminUsersTable();
       }
     };
@@ -1508,6 +1566,12 @@ async function renderAdminUsersTable() {
       if (confirm(`คุณต้องการลบผู้ใช้งาน "${u.name}" (${u.email}) ออกจากระบบหรือไม่?`)) {
         await apiDeleteUser(u.uid);
         showToast('ลบผู้ใช้งานเรียบร้อยแล้ว');
+        logAuditEvent(
+          'USER_DELETE',
+          'USER',
+          u.username || u.email,
+          `ลบบัญชีผู้ใช้งาน ${u.name} (${u.email}) ออกจากระบบ`
+        );
         renderAdminUsersTable();
         loadAdminUsersDropdown();
         renderAdminResultsTable();
@@ -1564,6 +1628,12 @@ async function handleCreateUser(e) {
       role
     });
     showToast(`สร้างบัญชีผู้ใช้งาน ${email} สำเร็จเรียบร้อย`);
+    logAuditEvent(
+      'USER_CREATE',
+      'USER',
+      email,
+      `สร้างบัญชีผู้ใช้ใหม่: ${name} (${code || '-'}) สิทธิ์ ${role === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้งาน'}`
+    );
     closeCreateUserModal();
     renderAdminUsersTable();
     loadAdminUsersDropdown();
@@ -1690,6 +1760,134 @@ function closePdfModal() {
   document.getElementById('modal-pdf').classList.add('hidden');
 }
 
+// ============================================================================
+// Audit Logs Controller (Admin Secret Access)
+// ============================================================================
+async function openAuditLogModal() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+
+  const modal = document.getElementById('modal-audit-log');
+  if (!modal) return;
+
+  modal.classList.remove('hidden');
+  await renderAuditLogsTable();
+
+  if (window.lucide) {
+    window.lucide.createIcons({ root: modal });
+  }
+}
+
+function closeAuditLogModal() {
+  document.getElementById('modal-audit-log')?.classList.add('hidden');
+}
+
+async function renderAuditLogsTable(forceRefresh = false) {
+  const tbody = document.getElementById('audit-logs-tbody');
+  const countText = document.getElementById('audit-logs-count-text');
+  const searchInput = document.getElementById('audit-filter-search');
+  const categorySelect = document.getElementById('audit-filter-category');
+
+  if (!tbody) return;
+
+  if (forceRefresh || cachedAuditLogs.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="py-10 text-center text-slate-400">
+          <i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600"></i>
+          <div>กำลังโหลดประวัติกิจกรรมจากคลาวด์...</div>
+        </td>
+      </tr>
+    `;
+    if (window.lucide) window.lucide.createIcons({ root: tbody });
+    cachedAuditLogs = await apiGetAuditLogs(200);
+  }
+
+  const searchTerm = (searchInput?.value || '').toLowerCase().trim();
+  const selectedCat = categorySelect?.value || 'ALL';
+
+  let filtered = cachedAuditLogs;
+  if (selectedCat !== 'ALL') {
+    filtered = filtered.filter(log => log.category === selectedCat);
+  }
+
+  if (searchTerm) {
+    filtered = filtered.filter(log => {
+      const matchActor = (log.actor?.name || '').toLowerCase().includes(searchTerm) ||
+                         (log.actor?.username || '').toLowerCase().includes(searchTerm);
+      const matchTarget = (log.target || '').toLowerCase().includes(searchTerm);
+      const matchDetails = (log.details || '').toLowerCase().includes(searchTerm);
+      const matchAction = (log.action || '').toLowerCase().includes(searchTerm);
+      return matchActor || matchTarget || matchDetails || matchAction;
+    });
+  }
+
+  if (countText) {
+    countText.textContent = `แสดง ${filtered.length} จากทั้งหมด ${cachedAuditLogs.length} รายการกิจกรรมล่าสุด`;
+  }
+
+  tbody.innerHTML = '';
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="py-10 text-center text-slate-400">
+          <i data-lucide="inbox" class="w-7 h-7 mx-auto mb-2 text-slate-300"></i>
+          <div>ไม่พบประวัติกิจกรรมตามเงื่อนไขที่เลือก</div>
+        </td>
+      </tr>
+    `;
+    if (window.lucide) window.lucide.createIcons({ root: tbody });
+    return;
+  }
+
+  const categoryColorMap = {
+    SUBMISSION: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    LOT: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    CONFIG: 'bg-purple-50 text-purple-700 border-purple-200',
+    USER: 'bg-amber-50 text-amber-700 border-amber-200',
+    AUTH: 'bg-sky-50 text-sky-700 border-sky-200'
+  };
+
+  filtered.forEach(log => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
+
+    const catBadgeClass = categoryColorMap[log.category] || 'bg-slate-100 text-slate-700 border-slate-200';
+    const isActorAdmin = (log.actor?.role === 'admin');
+
+    tr.innerHTML = `
+      <td class="py-3 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+        ${esc(log.createdAt || '-')}
+      </td>
+      <td class="py-3 px-4 whitespace-nowrap">
+        <div class="font-bold text-slate-800 text-xs">${esc(log.actor?.name || log.actor?.username || 'Unknown')}</div>
+        <div class="text-[10px] flex items-center gap-1 font-mono">
+          <span class="text-slate-400">${esc(log.actor?.username || '')}</span>
+          <span class="px-1.5 py-0.2 rounded text-[9px] font-bold ${isActorAdmin ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}">
+            ${isActorAdmin ? 'ADMIN' : 'USER'}
+          </span>
+        </div>
+      </td>
+      <td class="py-3 px-4 whitespace-nowrap">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${catBadgeClass}">
+          ${esc(log.action)}
+        </span>
+      </td>
+      <td class="py-3 px-4 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
+        ${esc(log.target || '-')}
+      </td>
+      <td class="py-3 px-4 text-xs text-slate-600 leading-relaxed">
+        ${esc(log.details || '-')}
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+
+  if (window.lucide) {
+    window.lucide.createIcons({ root: tbody });
+  }
+}
+
 function downloadRealPdf() {
   const element = document.getElementById('pdf-printable-area');
   const opt = {
@@ -1772,6 +1970,21 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pdf-close-btn')?.addEventListener('click', closePdfModal);
   document.getElementById('pdf-print-btn')?.addEventListener('click', () => window.print());
   document.getElementById('pdf-download-file-btn')?.addEventListener('click', downloadRealPdf);
+
+  // Secret Audit Log access (Double click on Blue Logo for Admin only)
+  const logoBtn = document.getElementById('app-logo-btn');
+  logoBtn?.addEventListener('dblclick', () => {
+    if (currentUser?.role === 'admin') {
+      openAuditLogModal();
+    }
+  });
+
+  // Audit Modal internal events
+  document.getElementById('modal-audit-close-btn')?.addEventListener('click', closeAuditLogModal);
+  document.getElementById('modal-audit-close-bottom-btn')?.addEventListener('click', closeAuditLogModal);
+  document.getElementById('audit-refresh-btn')?.addEventListener('click', () => renderAuditLogsTable(true));
+  document.getElementById('audit-filter-category')?.addEventListener('change', () => renderAuditLogsTable(false));
+  document.getElementById('audit-filter-search')?.addEventListener('input', () => renderAuditLogsTable(false));
 
   // Start app
   initApp();

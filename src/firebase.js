@@ -20,7 +20,8 @@ import {
   updateDoc, 
   deleteDoc, 
   query, 
-  orderBy 
+  orderBy,
+  limit
 } from 'firebase/firestore';
 
 // 1. Read Environment Variables from Vite
@@ -567,5 +568,61 @@ export async function apiDeleteSubmission(submissionKey) {
   } catch (e) {
     console.error('[Firestore Error] apiDeleteSubmission failed:', e);
     throw new Error(`ไม่สามารถลบผลการทดสอบบน Cloud Firestore: ${e.message}`);
+  }
+}
+
+// ============================================================================
+// 6. Audit Logs API (Traceability & Security Tracking)
+// ============================================================================
+export async function apiAddAuditLog({ action, category, target, details, actor }) {
+  if (!isFirebaseConfigured || !db) return;
+
+  try {
+    const logId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date();
+    const pad = n => n.toString().padStart(2, '0');
+    const timestampStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    const logEntry = {
+      id: logId,
+      action: action || 'UNKNOWN',
+      category: category || 'GENERAL',
+      target: target || '-',
+      details: details || '',
+      actor: {
+        uid: actor?.uid || 'anonymous',
+        username: actor?.username || actor?.email?.split('@')[0] || 'system',
+        name: actor?.name || actor?.username || 'ผู้ใช้งาน',
+        role: actor?.role || 'user'
+      },
+      createdAt: timestampStr,
+      createdAtMs: Date.now()
+    };
+
+    // Non-blocking fire-and-forget save
+    setDoc(doc(db, 'audit_logs', logId), logEntry).catch(err => {
+      console.warn('[Audit Log Notice] Failed to save audit log:', err);
+    });
+  } catch (e) {
+    console.warn('[Audit Log Error]:', e);
+  }
+}
+
+export async function apiGetAuditLogs(maxEntries = 200) {
+  if (!isFirebaseConfigured || !db) return [];
+
+  try {
+    const q = query(
+      collection(db, 'audit_logs'),
+      orderBy('createdAtMs', 'desc'),
+      limit(maxEntries)
+    );
+    const snap = await getDocs(q);
+    const list = [];
+    snap.forEach(d => list.push(d.data()));
+    return list;
+  } catch (e) {
+    console.warn('[Audit Log Notice] Failed to fetch audit logs:', e);
+    return [];
   }
 }
