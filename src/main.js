@@ -91,18 +91,15 @@ export async function initApp() {
   if (!currentUser) {
     // Show Login View Immediately
     viewLogin.classList.remove('hidden');
-    navUserInfo.innerHTML = `
-      <div class="text-xs text-slate-500 flex items-center gap-1.5">
-        <span class="w-2 h-2 rounded-full ${isFirebaseConfigured ? 'bg-emerald-500' : 'bg-amber-400'}"></span>
-        <span>${isFirebaseConfigured ? 'ระบบออนไลน์ (Cloud Firestore)' : 'โหมดสแตนด์อโลน'}</span>
-      </div>
-    `;
+    navUserInfo.innerHTML = '';
+    navUserInfo.classList.add('hidden');
   } else if (currentUser.role === 'admin') {
     viewAdmin.classList.remove('hidden');
+    navUserInfo.classList.remove('hidden');
     navUserInfo.innerHTML = `
       <div class="flex items-center gap-3">
         <div class="text-left">
-          <div class="text-xs font-bold text-slate-800">${currentUser.name || currentUser.username}</div>
+          <div class="text-xs font-bold text-slate-800">${esc(currentUser.name || currentUser.username)}</div>
           <div class="text-[11px] text-indigo-600 font-semibold font-mono">ADMINISTRATOR</div>
         </div>
         <button id="nav-logout-btn" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-rose-600 transition flex items-center gap-1.5">
@@ -115,11 +112,12 @@ export async function initApp() {
     initAdminView();
   } else {
     viewUser.classList.remove('hidden');
+    navUserInfo.classList.remove('hidden');
     navUserInfo.innerHTML = `
       <div class="flex items-center gap-3">
         <div class="text-left">
-          <div class="text-xs font-bold text-slate-800">${currentUser.name || currentUser.username}</div>
-          <div class="text-[11px] text-slate-500 font-mono">${currentUser.code || currentUser.memberCode || 'LAB-SITE'}</div>
+          <div class="text-xs font-bold text-slate-800">${esc(currentUser.name || currentUser.username)}</div>
+          <div class="text-[11px] text-slate-500 font-mono">${esc(currentUser.code || currentUser.memberCode || 'LAB-SITE')}</div>
         </div>
         <button id="nav-logout-btn" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-rose-600 transition flex items-center gap-1.5">
           <i data-lucide="log-out" class="w-3.5 h-3.5"></i>

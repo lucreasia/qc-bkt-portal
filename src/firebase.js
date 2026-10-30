@@ -135,9 +135,21 @@ export async function apiLogin(userInput, password) {
       const userDoc = await getDoc(userDocRef);
       if (userDoc.exists()) {
         userData = { uid, ...userDoc.data() };
+        let needsUpdate = false;
+        const updates = {};
+
         if (isSuperAdmin && userData.role !== 'admin') {
           userData.role = 'admin';
-          await setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(() => {});
+          updates.role = 'admin';
+          needsUpdate = true;
+        }
+        if (userData.name && userData.name.includes('(BKT Super Admin)')) {
+          userData.name = userData.name.replace(/\s*\(BKT Super Admin\)/g, '').trim();
+          updates.name = userData.name;
+          needsUpdate = true;
+        }
+        if (needsUpdate) {
+          await setDoc(userDocRef, updates, { merge: true }).catch(() => {});
         }
       }
     } catch (e) {
@@ -149,7 +161,7 @@ export async function apiLogin(userInput, password) {
         uid,
         email,
         username,
-        name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : `หน่วยงาน ${username.toUpperCase()}`,
+        name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง' : `หน่วยงาน ${username.toUpperCase()}`,
         code: isSuperAdmin ? 'ADMIN-HQ' : `LAB-${username.toUpperCase()}`,
         department: isSuperAdmin ? 'ศูนย์บริหารจัดการข้อมูลกลาง' : 'ห้องปฏิบัติการมาตรฐาน',
         contact: 'เจ้าหน้าที่ผู้รับผิดชอบ',
@@ -173,7 +185,7 @@ export async function apiLogin(userInput, password) {
           uid,
           email,
           username: 'adminbkt',
-          name: 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)',
+          name: 'ผู้ดูแลระบบส่วนกลาง',
           code: 'ADMIN-HQ',
           department: 'ศูนย์บริหารจัดการข้อมูลกลาง',
           contact: 'ผู้ควบคุมระบบส่วนกลาง',
@@ -232,6 +244,10 @@ export async function apiGetCurrentUser() {
             const userDoc = await getDoc(doc(db, 'users', user.uid));
             if (userDoc.exists()) {
               const fullData = { uid: user.uid, ...userDoc.data() };
+              if (fullData.name && fullData.name.includes('(BKT Super Admin)')) {
+                fullData.name = fullData.name.replace(/\s*\(BKT Super Admin\)/g, '').trim();
+                setDoc(doc(db, 'users', user.uid), { name: fullData.name }, { merge: true }).catch(() => {});
+              }
               localStorage.setItem('portal_current_user', JSON.stringify(fullData));
               resolve(fullData);
               return;
@@ -245,7 +261,7 @@ export async function apiGetCurrentUser() {
             uid: user.uid,
             email,
             username: email.split('@')[0],
-            name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : (email.split('@')[0] || 'User'),
+            name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง' : (email.split('@')[0] || 'User'),
             role: isSuperAdmin ? 'admin' : 'user'
           };
           resolve(fallback);

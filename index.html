@@ -78,17 +78,9 @@
           </div>
 
           <!-- User Info & Logout on the LEFT SIDE -->
-          <div id="nav-user-info" class="flex items-center gap-3 border-l border-slate-200 pl-4 sm:pl-6">
+          <div id="nav-user-info" class="hidden flex items-center gap-3 border-l border-slate-200 pl-4 sm:pl-6">
             <!-- Populated by main.js -->
           </div>
-        </div>
-
-        <!-- Right Side: System Badge -->
-        <div class="hidden md:flex items-center gap-2 text-xs text-slate-400 font-medium">
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>ระบบมาตรฐานการรายงานผล</span>
-          </span>
         </div>
 
       </div>
@@ -145,12 +137,6 @@
             <i data-lucide="arrow-right" class="w-4 h-4"></i>
           </button>
         </form>
-
-        <div class="mt-8 pt-4 border-t border-slate-100 text-center">
-          <p class="text-[11px] text-slate-400">
-            ระบบความปลอดภัยมาตรฐานการเชื่อมต่อ HTTPS & Firebase Authentication
-          </p>
-        </div>
       </div>
     </div>
 
@@ -621,6 +607,12 @@
     </div>
 
   </main>
+
+  <!-- ================= SYSTEM FOOTER ================= -->
+  <footer class="py-6 text-center text-xs text-slate-400 space-y-1 no-print select-none">
+    <p class="font-medium text-slate-500">QC Online System V1.0</p>
+    <p>@2026 LR Project</p>
+  </footer>
 
   <!-- ================= MODAL: TEST CONFIG ================= -->
   <div id="modal-test-config" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
