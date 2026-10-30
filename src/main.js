@@ -38,6 +38,31 @@ const MONTH_NAMES = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
 ];
 
+const BASE_START_YEAR = 2026;
+
+export function populateDynamicYearSelect(selectElement, allowNextYear = false) {
+  if (!selectElement) return;
+  const currentSavedValue = parseInt(selectElement.value, 10);
+  const currentYear = new Date().getFullYear();
+  const maxYear = allowNextYear ? Math.max(currentYear + 1, BASE_START_YEAR) : Math.max(currentYear, BASE_START_YEAR);
+  const minYear = BASE_START_YEAR;
+
+  selectElement.innerHTML = '';
+  for (let y = maxYear; y >= minYear; y--) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = `${y + 543} (${y})`;
+    selectElement.appendChild(opt);
+  }
+
+  // Restore previous selection if valid, otherwise default to currentYear
+  if (currentSavedValue && currentSavedValue >= minYear && currentSavedValue <= maxYear) {
+    selectElement.value = currentSavedValue;
+  } else {
+    selectElement.value = Math.min(Math.max(currentYear, minYear), maxYear);
+  }
+}
+
 let currentUser = null;
 let cachedUsersList = [];
 let cachedMonthlyLots = {};
@@ -179,7 +204,10 @@ async function renderUserDashboard() {
   if (!currentUser) return;
 
   const yearSelect = document.getElementById('u-year-select');
-  const selectedYear = parseInt(yearSelect.value) || 2026;
+  if (yearSelect && yearSelect.children.length === 0) {
+    populateDynamicYearSelect(yearSelect, false);
+  }
+  const selectedYear = parseInt(yearSelect?.value, 10) || new Date().getFullYear();
   const submissions = await apiGetSubmissions();
   const testConfigs = await apiGetTestConfigs();
   cachedMonthlyLots = await apiGetMonthlyLots(false);
@@ -650,6 +678,22 @@ async function initAdminView() {
       lotMonthSelect.appendChild(opt);
     });
     lotMonthSelect.value = new Date().getMonth();
+  }
+
+  // Populate dynamic year selectors for Admin Portal
+  const matrixYearSelect = document.getElementById('matrix-filter-year');
+  if (matrixYearSelect && matrixYearSelect.children.length === 0) {
+    populateDynamicYearSelect(matrixYearSelect, false);
+  }
+
+  const adminYearSelect = document.getElementById('admin-filter-year');
+  if (adminYearSelect && adminYearSelect.children.length === 0) {
+    populateDynamicYearSelect(adminYearSelect, false);
+  }
+
+  const lotYearSelect = document.getElementById('lot-select-year');
+  if (lotYearSelect && lotYearSelect.children.length === 0) {
+    populateDynamicYearSelect(lotYearSelect, true); // Allow setting up next year's lot in advance
   }
 
   await loadAdminUsersDropdown();
