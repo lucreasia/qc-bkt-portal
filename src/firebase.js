@@ -20,7 +20,9 @@ import {
   updateDoc, 
   deleteDoc, 
   query, 
-  orderBy 
+  where,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 
 // 1. Read Environment Variables from Vite
@@ -135,9 +137,21 @@ export async function apiLogin(userInput, password) {
       const userDoc = await getDoc(userDocRef);
       if (userDoc.exists()) {
         userData = { uid, ...userDoc.data() };
+        let needsUpdate = false;
+        const updates = {};
+
         if (isSuperAdmin && userData.role !== 'admin') {
           userData.role = 'admin';
-          await setDoc(userDocRef, { role: 'admin' }, { merge: true }).catch(() => {});
+          updates.role = 'admin';
+          needsUpdate = true;
+        }
+        if (userData.name && userData.name.includes('(BKT Super Admin)')) {
+          userData.name = userData.name.replace(/\s*\(BKT Super Admin\)/g, '').trim();
+          updates.name = userData.name;
+          needsUpdate = true;
+        }
+        if (needsUpdate) {
+          await setDoc(userDocRef, updates, { merge: true }).catch(() => {});
         }
       }
     } catch (e) {
@@ -149,7 +163,7 @@ export async function apiLogin(userInput, password) {
         uid,
         email,
         username,
-        name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : `หน่วยงาน ${username.toUpperCase()}`,
+        name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง' : `หน่วยงาน ${username.toUpperCase()}`,
         code: isSuperAdmin ? 'ADMIN-HQ' : `LAB-${username.toUpperCase()}`,
         department: isSuperAdmin ? 'ศูนย์บริหารจัดการข้อมูลกลาง' : 'ห้องปฏิบัติการมาตรฐาน',
         contact: 'เจ้าหน้าที่ผู้รับผิดชอบ',
@@ -159,7 +173,6 @@ export async function apiLogin(userInput, password) {
       await setDoc(userDocRef, userData, { merge: true }).catch(() => {});
     }
 
-    localStorage.setItem('portal_current_user', JSON.stringify(userData));
     return userData;
   } catch (firebaseErr) {
     console.error('[Firebase Auth Login Error]:', firebaseErr.code, firebaseErr.message);
@@ -173,7 +186,7 @@ export async function apiLogin(userInput, password) {
           uid,
           email,
           username: 'adminbkt',
-          name: 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)',
+          name: 'ผู้ดูแลระบบส่วนกลาง',
           code: 'ADMIN-HQ',
           department: 'ศูนย์บริหารจัดการข้อมูลกลาง',
           contact: 'ผู้ควบคุมระบบส่วนกลาง',
@@ -181,7 +194,6 @@ export async function apiLogin(userInput, password) {
           createdAt: new Date().toISOString()
         };
         await setDoc(doc(db, 'users', uid), adminData, { merge: true }).catch(() => {});
-        localStorage.setItem('portal_current_user', JSON.stringify(adminData));
         return adminData;
       } catch (createErr) {
         console.error('Auto-creation of admin failed:', createErr);
@@ -203,7 +215,6 @@ export async function apiLogout() {
       console.warn('Sign out error:', e);
     }
   }
-  localStorage.removeItem('portal_current_user');
 }
 
 export async function apiGetCurrentUser() {
@@ -232,7 +243,10 @@ export async function apiGetCurrentUser() {
             const userDoc = await getDoc(doc(db, 'users', user.uid));
             if (userDoc.exists()) {
               const fullData = { uid: user.uid, ...userDoc.data() };
-              localStorage.setItem('portal_current_user', JSON.stringify(fullData));
+              if (fullData.name && fullData.name.includes('(BKT Super Admin)')) {
+                fullData.name = fullData.name.replace(/\s*\(BKT Super Admin\)/g, '').trim();
+                setDoc(doc(db, 'users', user.uid), { name: fullData.name }, { merge: true }).catch(() => {});
+              }
               resolve(fullData);
               return;
             }
@@ -245,12 +259,11 @@ export async function apiGetCurrentUser() {
             uid: user.uid,
             email,
             username: email.split('@')[0],
-            name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง (BKT Super Admin)' : (email.split('@')[0] || 'User'),
+            name: isSuperAdmin ? 'ผู้ดูแลระบบส่วนกลาง' : (email.split('@')[0] || 'User'),
             role: isSuperAdmin ? 'admin' : 'user'
           };
           resolve(fallback);
         } else {
-          localStorage.removeItem('portal_current_user');
           resolve(null);
         }
       });
@@ -511,17 +524,22 @@ export async function apiSaveMonthlyLot(lotKey, lotData) {
 // ============================================================================
 // 5. Submissions API (Direct Cloud Firestore Only)
 // ============================================================================
-export async function apiGetSubmissions(forceRefresh = false) {
+export async function apiGetSubmissions(forceRefresh = false, userFilter = null) {
   if (!isFirebaseConfigured || !db) return {};
-  if (!forceRefresh && cacheSubmissions) return cacheSubmissions;
+  if (!forceRefresh && !userFilter && cacheSubmissions) return cacheSubmissions;
 
   try {
-    const snap = await getDocs(collection(db, 'submissions'));
+    const q = userFilter
+      ? query(collection(db, 'submissions'), where('username', '==', userFilter))
+      : collection(db, 'submissions');
+    const snap = await getDocs(q);
     const map = {};
     snap.forEach(d => {
       map[d.id] = d.data();
     });
-    cacheSubmissions = map;
+    if (!userFilter) {
+      cacheSubmissions = map;
+    }
     return map;
   } catch (e) {
     console.warn('[Firestore Notice] apiGetSubmissions returned empty:', e);
@@ -551,5 +569,61 @@ export async function apiDeleteSubmission(submissionKey) {
   } catch (e) {
     console.error('[Firestore Error] apiDeleteSubmission failed:', e);
     throw new Error(`ไม่สามารถลบผลการทดสอบบน Cloud Firestore: ${e.message}`);
+  }
+}
+
+// ============================================================================
+// 6. Audit Logs API (Traceability & Security Tracking)
+// ============================================================================
+export async function apiAddAuditLog({ action, category, target, details, actor }) {
+  if (!isFirebaseConfigured || !db) return;
+
+  try {
+    const logId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date();
+    const pad = n => n.toString().padStart(2, '0');
+    const timestampStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    const logEntry = {
+      id: logId,
+      action: action || 'UNKNOWN',
+      category: category || 'GENERAL',
+      target: target || '-',
+      details: details || '',
+      actor: {
+        uid: actor?.uid || 'anonymous',
+        username: actor?.username || actor?.email?.split('@')[0] || 'system',
+        name: actor?.name || actor?.username || 'ผู้ใช้งาน',
+        role: actor?.role || 'user'
+      },
+      createdAt: timestampStr,
+      createdAtMs: Date.now()
+    };
+
+    // Non-blocking fire-and-forget save
+    setDoc(doc(db, 'audit_logs', logId), logEntry).catch(err => {
+      console.warn('[Audit Log Notice] Failed to save audit log:', err);
+    });
+  } catch (e) {
+    console.warn('[Audit Log Error]:', e);
+  }
+}
+
+export async function apiGetAuditLogs(maxEntries = 200) {
+  if (!isFirebaseConfigured || !db) return [];
+
+  try {
+    const q = query(
+      collection(db, 'audit_logs'),
+      orderBy('createdAtMs', 'desc'),
+      limit(maxEntries)
+    );
+    const snap = await getDocs(q);
+    const list = [];
+    snap.forEach(d => list.push(d.data()));
+    return list;
+  } catch (e) {
+    console.warn('[Audit Log Notice] Failed to fetch audit logs:', e);
+    return [];
   }
 }

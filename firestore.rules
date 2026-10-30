@@ -1,9 +1,62 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ผู้ใช้งานที่ผ่านการเข้าสู่ระบบแล้ว สามารถอ่านและบันทึกข้อมูลทุก Collection ได้อย่างสมบูรณ์
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    function signedIn() { 
+      return request.auth != null; 
+    }
+    
+    function isAdmin() {
+      return signedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function ownKey(key) {
+      return key.matches('^' + request.auth.token.email.split('@')[0] + '_.*');
+    }
+    
+    function ownUser(userData) {
+      return userData.username == request.auth.token.email.split('@')[0];
+    }
+
+    // 1. Users collection
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isAdmin() || (request.auth.uid == uid && request.resource.data.role == 'user');
+      allow update: if isAdmin() ||
+        (request.auth.uid == uid && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    // 2. Test configurations
+    match /test_configs/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // 3. Public lot information (Lot number, status, announce date)
+    match /lot_public/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // 4. Target values / evaluation criteria (Confidential: Admin only)
+    match /monthly_lots/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // 5. Test submissions
+    match /submissions/{key} {
+      allow read: if isAdmin() || (signedIn() && (ownKey(key) || ownUser(resource.data)));
+      allow create: if isAdmin() || (signedIn() && ownKey(key) && ownUser(request.resource.data));
+      allow update: if isAdmin() || (signedIn() && ownKey(key) && ownUser(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    // 6. Audit logs
+    match /audit_logs/{id} {
+      allow read: if isAdmin();
+      allow create: if signedIn();
+      allow update, delete: if false;
     }
   }
 }

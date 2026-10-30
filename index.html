@@ -12,8 +12,6 @@
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
   <!-- html2pdf.js for true PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
@@ -66,8 +64,8 @@
         <!-- Left Side: App Logo & User Login Status -->
         <div class="flex items-center gap-4 sm:gap-6">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
-              <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+            <div id="app-logo-btn" class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 transition select-none">
+              <i data-lucide="clipboard-check" class="w-5 h-5 pointer-events-none"></i>
             </div>
             <div>
               <h1 class="text-base sm:text-lg font-bold text-slate-800 leading-tight">
@@ -78,17 +76,9 @@
           </div>
 
           <!-- User Info & Logout on the LEFT SIDE -->
-          <div id="nav-user-info" class="flex items-center gap-3 border-l border-slate-200 pl-4 sm:pl-6">
+          <div id="nav-user-info" class="hidden flex items-center gap-3 border-l border-slate-200 pl-4 sm:pl-6">
             <!-- Populated by main.js -->
           </div>
-        </div>
-
-        <!-- Right Side: System Badge -->
-        <div class="hidden md:flex items-center gap-2 text-xs text-slate-400 font-medium">
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>ระบบมาตรฐานการรายงานผล</span>
-          </span>
         </div>
 
       </div>
@@ -145,12 +135,6 @@
             <i data-lucide="arrow-right" class="w-4 h-4"></i>
           </button>
         </form>
-
-        <div class="mt-8 pt-4 border-t border-slate-100 text-center">
-          <p class="text-[11px] text-slate-400">
-            ระบบความปลอดภัยมาตรฐานการเชื่อมต่อ HTTPS & Firebase Authentication
-          </p>
-        </div>
       </div>
     </div>
 
@@ -199,15 +183,65 @@
         </div>
         <div class="flex items-center gap-2">
           <label class="text-xs font-semibold text-slate-600">เลือกปี:</label>
-          <select id="u-year-select" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-sky-500">
-            <option value="2026">2569 (2026)</option>
-            <option value="2025">2568 (2025)</option>
-          </select>
+          <select id="u-year-select" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-sky-500 font-medium text-slate-700"></select>
         </div>
       </div>
 
-      <!-- Month Cards Grid (12 Months) -->
-      <div id="u-months-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+      <!-- Deadline Warning Banner Container (For active month near month-end) -->
+      <div id="u-deadline-alert-container"></div>
+
+      <!-- 1. Top Hero Banner: Current Month to Submit (Large Full-Width) -->
+      <div id="u-active-month-container"></div>
+
+      <!-- 2. Collapsible Section 1: Submitted Months -->
+      <div id="u-section-submitted" class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <button type="button" id="u-toggle-submitted-btn" class="w-full px-6 py-4 flex items-center justify-between bg-emerald-50/40 hover:bg-emerald-50/70 transition text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <span>รายการรอบที่ส่งผลเรียบร้อยแล้ว</span>
+                <span id="u-badge-submitted-count" class="px-2 py-0.5 text-[11px] font-mono font-bold rounded-full bg-emerald-100 text-emerald-800">0 รอบ</span>
+              </h4>
+              <p class="text-xs text-slate-500">สามารถคลิกเพื่อดูรายละเอียดผลการทดสอบย้อนหลังได้ตลอดเวลา</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <span id="u-label-submitted-toggle">ซ่อนรายการ</span>
+            <i id="u-icon-submitted-toggle" data-lucide="chevron-up" class="w-4 h-4 transition-transform"></i>
+          </div>
+        </button>
+        <div id="u-submitted-grid-wrap" class="p-5 border-t border-slate-100">
+          <div id="u-submitted-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+      </div>
+
+      <!-- 3. Collapsible Section 2: Past Months (Closed) -->
+      <div id="u-section-others" class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <button type="button" id="u-toggle-others-btn" class="w-full px-6 py-4 flex items-center justify-between bg-slate-50/70 hover:bg-slate-100/80 transition text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-slate-200/80 text-slate-600 flex items-center justify-center">
+              <i data-lucide="archive" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                <span>รอบเดือนเก่าที่ผ่านมาแล้ว (ปิดรับการรายงาน)</span>
+                <span id="u-badge-others-count" class="px-2 py-0.5 text-[11px] font-mono font-bold rounded-full bg-slate-200 text-slate-700">0 รอบ</span>
+              </h4>
+              <p class="text-xs text-slate-500">รอบการทดสอบในอดีตที่สิ้นสุดระยะเวลาการรายงานผลแล้ว</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <span id="u-label-others-toggle">ขยายดูรายการ</span>
+            <i id="u-icon-others-toggle" data-lucide="chevron-down" class="w-4 h-4 transition-transform"></i>
+          </div>
+        </button>
+        <div id="u-others-grid-wrap" class="hidden p-5 border-t border-slate-100 bg-slate-50/30">
+          <div id="u-others-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ------------------------------------------------------------- -->
@@ -381,10 +415,7 @@
           <div class="flex flex-wrap items-center gap-3">
             <div>
               <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">เลือกปีรายงาน</label>
-              <select id="matrix-filter-year" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700">
-                <option value="2026">2569 (2026)</option>
-                <option value="2025">2568 (2025)</option>
-              </select>
+              <select id="matrix-filter-year" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700"></select>
             </div>
             <div>
               <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">กรองสถานะ</label>
@@ -462,10 +493,7 @@
             </div>
             <div>
               <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">เลือกปี</label>
-              <select id="admin-filter-year" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500">
-                <option value="2026">2569 (2026)</option>
-                <option value="2025">2568 (2025)</option>
-              </select>
+              <select id="admin-filter-year" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700"></select>
             </div>
             <div>
               <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">เลือกเดือน</label>
@@ -476,6 +504,10 @@
           </div>
 
           <div class="flex items-center gap-2">
+            <button id="admin-export-csv-btn" class="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+              <span>ส่งออก Excel/CSV</span>
+            </button>
             <button id="admin-quick-pdf-btn" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
               <i data-lucide="file-down" class="w-4 h-4 text-rose-600"></i>
               <span>ส่งออกรายงาน PDF พร้อมเฉลย</span>
@@ -542,11 +574,8 @@
             </div>
             <div class="flex items-center gap-2">
               <label class="text-xs font-semibold text-slate-600">เลือกรอบประจำเดือน:</label>
-              <select id="lot-select-month" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500"></select>
-              <select id="lot-select-year" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500">
-                <option value="2026">2569 (2026)</option>
-                <option value="2025">2568 (2025)</option>
-              </select>
+              <select id="lot-select-month" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700"></select>
+              <select id="lot-select-year" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700"></select>
             </div>
           </div>
 
@@ -621,6 +650,12 @@
     </div>
 
   </main>
+
+  <!-- ================= SYSTEM FOOTER ================= -->
+  <footer class="py-6 text-center text-xs text-slate-400 space-y-1 no-print select-none">
+    <p class="font-medium text-slate-500">QC Online System V1.0</p>
+    <p>@2026 LR Project</p>
+  </footer>
 
   <!-- ================= MODAL: TEST CONFIG ================= -->
   <div id="modal-test-config" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -878,6 +913,88 @@
           </div>
 
         </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MODAL: AUDIT LOGS (ADMIN SECRET ACCESS) ================= -->
+  <div id="modal-audit-log" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-5xl w-full shadow-2xl border border-slate-100 overflow-hidden my-6 flex flex-col max-h-[90vh]">
+      
+      <!-- Modal Header -->
+      <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+            <i data-lucide="shield-alert" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <span>บันทึกประวัติกิจกรรมระบบ (Audit Logs)</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">ADMINISTRATOR ONLY</span>
+            </h3>
+            <p class="text-xs text-slate-400">ตรวจสอบประวัติการลงผล การแก้ไขเฉลย และความเปลี่ยนแปลงข้อมูลทั้งหมดในระบบ</p>
+          </div>
+        </div>
+        <button id="modal-audit-close-btn" class="w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Controls & Filter Bar -->
+      <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+        <div class="flex flex-wrap items-center gap-3 flex-1">
+          <div class="relative min-w-[220px] flex-1 max-w-sm">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <i data-lucide="search" class="w-4 h-4"></i>
+            </span>
+            <input type="text" id="audit-filter-search" placeholder="ค้นหาชื่อผู้ใช้, หน่วยงาน, หรือรายละเอียด..." class="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500">
+          </div>
+
+          <div>
+            <select id="audit-filter-category" class="text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700">
+              <option value="ALL">ทุกหมวดหมู่กิจกรรม</option>
+              <option value="SUBMISSION">การลงผลและแก้ไขผล (Submissions)</option>
+              <option value="LOT">รอบ Lot & เฉลย (Lots & Keys)</option>
+              <option value="CONFIG">โครงสร้างแบบทดสอบ (Test Configs)</option>
+              <option value="USER">จัดการผู้ใช้งาน (Users)</option>
+              <option value="AUTH">การเข้าสู่ระบบ (Authentication)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="audit-refresh-btn" class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>รีเฟรชประวัติ</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Logs Table Container (Scrollable) -->
+      <div class="overflow-y-auto flex-1">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead class="bg-slate-100/90 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200 sticky top-0 z-10">
+            <tr>
+              <th class="py-3 px-4 w-44">วัน-เวลา (Timestamp)</th>
+              <th class="py-3 px-4 w-48">ผู้ดำเนินการ (Actor)</th>
+              <th class="py-3 px-4 w-40">กิจกรรม (Event)</th>
+              <th class="py-3 px-4 w-40">เป้าหมาย (Target)</th>
+              <th class="py-3 px-4">รายละเอียด (Details)</th>
+            </tr>
+          </thead>
+          <tbody id="audit-logs-tbody" class="divide-y divide-slate-100 text-slate-700">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Footer Bar -->
+      <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 flex-shrink-0">
+        <span id="audit-logs-count-text">กำลังโหลดประวัติกิจกรรม...</span>
+        <button id="modal-audit-close-bottom-btn" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-medium transition">
+          ปิดหน้าต่าง
+        </button>
       </div>
 
     </div>
