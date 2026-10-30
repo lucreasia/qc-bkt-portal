@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "firebase": "^12.12.1",
-    "html2pdf.js": "^0.10.3",
     "lucide": "^1.16.0"
   },
   "devDependencies": {
     "vite": "^6.2.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.7"
   }
 }

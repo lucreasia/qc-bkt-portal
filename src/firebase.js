@@ -20,6 +20,7 @@ import {
   updateDoc, 
   deleteDoc, 
   query, 
+  where,
   orderBy,
   limit
 } from 'firebase/firestore';
@@ -172,7 +173,6 @@ export async function apiLogin(userInput, password) {
       await setDoc(userDocRef, userData, { merge: true }).catch(() => {});
     }
 
-    localStorage.setItem('portal_current_user', JSON.stringify(userData));
     return userData;
   } catch (firebaseErr) {
     console.error('[Firebase Auth Login Error]:', firebaseErr.code, firebaseErr.message);
@@ -194,7 +194,6 @@ export async function apiLogin(userInput, password) {
           createdAt: new Date().toISOString()
         };
         await setDoc(doc(db, 'users', uid), adminData, { merge: true }).catch(() => {});
-        localStorage.setItem('portal_current_user', JSON.stringify(adminData));
         return adminData;
       } catch (createErr) {
         console.error('Auto-creation of admin failed:', createErr);
@@ -216,7 +215,6 @@ export async function apiLogout() {
       console.warn('Sign out error:', e);
     }
   }
-  localStorage.removeItem('portal_current_user');
 }
 
 export async function apiGetCurrentUser() {
@@ -249,7 +247,6 @@ export async function apiGetCurrentUser() {
                 fullData.name = fullData.name.replace(/\s*\(BKT Super Admin\)/g, '').trim();
                 setDoc(doc(db, 'users', user.uid), { name: fullData.name }, { merge: true }).catch(() => {});
               }
-              localStorage.setItem('portal_current_user', JSON.stringify(fullData));
               resolve(fullData);
               return;
             }
@@ -267,7 +264,6 @@ export async function apiGetCurrentUser() {
           };
           resolve(fallback);
         } else {
-          localStorage.removeItem('portal_current_user');
           resolve(null);
         }
       });
@@ -528,17 +524,22 @@ export async function apiSaveMonthlyLot(lotKey, lotData) {
 // ============================================================================
 // 5. Submissions API (Direct Cloud Firestore Only)
 // ============================================================================
-export async function apiGetSubmissions(forceRefresh = false) {
+export async function apiGetSubmissions(forceRefresh = false, userFilter = null) {
   if (!isFirebaseConfigured || !db) return {};
-  if (!forceRefresh && cacheSubmissions) return cacheSubmissions;
+  if (!forceRefresh && !userFilter && cacheSubmissions) return cacheSubmissions;
 
   try {
-    const snap = await getDocs(collection(db, 'submissions'));
+    const q = userFilter
+      ? query(collection(db, 'submissions'), where('username', '==', userFilter))
+      : collection(db, 'submissions');
+    const snap = await getDocs(q);
     const map = {};
     snap.forEach(d => {
       map[d.id] = d.data();
     });
-    cacheSubmissions = map;
+    if (!userFilter) {
+      cacheSubmissions = map;
+    }
     return map;
   } catch (e) {
     console.warn('[Firestore Notice] apiGetSubmissions returned empty:', e);

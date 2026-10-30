@@ -12,8 +12,6 @@
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
   <!-- html2pdf.js for true PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
@@ -188,6 +186,9 @@
           <select id="u-year-select" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-sky-500 font-medium text-slate-700"></select>
         </div>
       </div>
+
+      <!-- Deadline Warning Banner Container (For active month near month-end) -->
+      <div id="u-deadline-alert-container"></div>
 
       <!-- 1. Top Hero Banner: Current Month to Submit (Large Full-Width) -->
       <div id="u-active-month-container"></div>
@@ -503,6 +504,10 @@
           </div>
 
           <div class="flex items-center gap-2">
+            <button id="admin-export-csv-btn" class="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+              <span>ส่งออก Excel/CSV</span>
+            </button>
             <button id="admin-quick-pdf-btn" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm">
               <i data-lucide="file-down" class="w-4 h-4 text-rose-600"></i>
               <span>ส่งออกรายงาน PDF พร้อมเฉลย</span>
