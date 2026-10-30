@@ -218,10 +218,46 @@ function setupLoginController() {
 }
 
 // ============================================================================
-// User Dashboard Controller (Strict Current Month Only)
+// User Dashboard Controller (New 2-Tier Structured Layout)
 // ============================================================================
+let userSubmittedOpen = true;
+let userOthersOpen = false;
+
+function setupUserCollapsibleSections() {
+  const toggleSubBtn = document.getElementById('u-toggle-submitted-btn');
+  const toggleOthBtn = document.getElementById('u-toggle-others-btn');
+
+  if (toggleSubBtn && !toggleSubBtn.dataset.bound) {
+    toggleSubBtn.dataset.bound = 'true';
+    toggleSubBtn.addEventListener('click', () => {
+      userSubmittedOpen = !userSubmittedOpen;
+      const wrap = document.getElementById('u-submitted-grid-wrap');
+      const label = document.getElementById('u-label-submitted-toggle');
+      const icon = document.getElementById('u-icon-submitted-toggle');
+      if (wrap) wrap.classList.toggle('hidden', !userSubmittedOpen);
+      if (label) label.textContent = userSubmittedOpen ? 'ซ่อนรายการ' : 'ขยายดูรายการ';
+      if (icon) icon.style.transform = userSubmittedOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+    });
+  }
+
+  if (toggleOthBtn && !toggleOthBtn.dataset.bound) {
+    toggleOthBtn.dataset.bound = 'true';
+    toggleOthBtn.addEventListener('click', () => {
+      userOthersOpen = !userOthersOpen;
+      const wrap = document.getElementById('u-others-grid-wrap');
+      const label = document.getElementById('u-label-others-toggle');
+      const icon = document.getElementById('u-icon-others-toggle');
+      if (wrap) wrap.classList.toggle('hidden', !userOthersOpen);
+      if (label) label.textContent = userOthersOpen ? 'ซ่อนรายการ' : 'ขยายดูรายการ';
+      if (icon) icon.style.transform = userOthersOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+    });
+  }
+}
+
 async function renderUserDashboard() {
   if (!currentUser) return;
+
+  setupUserCollapsibleSections();
 
   const yearSelect = document.getElementById('u-year-select');
   if (yearSelect && yearSelect.children.length === 0) {
@@ -252,9 +288,213 @@ async function renderUserDashboard() {
   document.getElementById('u-stat-submitted').textContent = submittedCount;
   document.getElementById('u-stat-pending').textContent = 12 - submittedCount;
 
-  const container = document.getElementById('u-months-grid');
-  container.innerHTML = '';
+  // Containers
+  const activeContainer = document.getElementById('u-active-month-container');
+  const submittedGrid = document.getElementById('u-submitted-grid');
+  const othersGrid = document.getElementById('u-others-grid');
+  const badgeSubCount = document.getElementById('u-badge-submitted-count');
+  const badgeOthCount = document.getElementById('u-badge-others-count');
 
+  if (activeContainer) activeContainer.innerHTML = '';
+  if (submittedGrid) submittedGrid.innerHTML = '';
+  if (othersGrid) othersGrid.innerHTML = '';
+
+  let submittedCardsCount = 0;
+  let othersCardsCount = 0;
+
+  // 1. Build Top Active Month Banner (Current Month: realMonth if viewing current year)
+  const isViewingCurrentYear = (selectedYear === realYear);
+  const activeMonthIdx = isViewingCurrentYear ? realMonth : null;
+
+  if (activeMonthIdx !== null) {
+    const activeMonthKey = `${userKey}_${selectedYear}_${activeMonthIdx}`;
+    const activeLotKey = `${selectedYear}_${activeMonthIdx}`;
+    const activeLotInfo = cachedMonthlyLots[activeLotKey];
+    const activeSub = submissions[activeMonthKey];
+    const isActiveSubmitted = !!activeSub;
+
+    const heroBanner = document.createElement('div');
+    heroBanner.className = `p-6 rounded-3xl border transition shadow-sm ${
+      isActiveSubmitted 
+        ? 'bg-gradient-to-br from-white via-emerald-50/20 to-emerald-100/30 border-emerald-300' 
+        : 'bg-gradient-to-br from-white via-sky-50/30 to-indigo-50/40 border-sky-300 ring-2 ring-sky-200/50'
+    }`;
+
+    let summaryBadges = '';
+    if (isActiveSubmitted) {
+      const summaryItems = [];
+      testConfigs.forEach(t => {
+        const testRes = activeSub.results?.[t.id];
+        if (testRes) {
+          const mKeys = Object.keys(testRes);
+          mKeys.forEach(mKey => {
+            const mData = testRes[mKey];
+            const lvDetails = Object.entries(mData).map(([lv, val]) => `${lv}: ${val}`).join(', ');
+            summaryItems.push(`
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-slate-200 text-xs shadow-2xs">
+                <span class="font-semibold text-slate-700">${esc(t.name)}</span>
+                <span class="text-slate-400 font-mono text-[11px]">(${mKey})</span>
+                <span class="font-bold text-indigo-700">${esc(lvDetails)} ${esc(t.unit || '')}</span>
+              </span>
+            `);
+          });
+        }
+      });
+      summaryBadges = `
+        <div class="mt-4 pt-4 border-t border-slate-100">
+          <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">สรุปผลที่รายงานไว้ล่าสุด:</div>
+          <div class="flex flex-wrap gap-2">${summaryItems.join('')}</div>
+          <div class="text-[11px] text-slate-400 mt-2.5 flex items-center gap-1.5">
+            <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+            <span>บันทึกเมื่อ: ${esc(activeSub.submittedAt)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    heroBanner.innerHTML = `
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
+              isActiveSubmitted 
+                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                : 'bg-sky-100 text-sky-800 border border-sky-300 animate-pulse'
+            }">
+              <i data-lucide="${isActiveSubmitted ? 'check-circle' : 'sparkles'}" class="w-3.5 h-3.5"></i>
+              <span>${isActiveSubmitted ? 'บันทึกผลประจำเดือนนี้เรียบร้อยแล้ว' : 'รอบประจำเดือนที่ต้องลงผลในขณะนี้'}</span>
+            </span>
+            ${activeLotInfo?.lotNumber ? `<span class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">LOT: ${esc(activeLotInfo.lotNumber)}</span>` : ''}
+          </div>
+          <h2 class="text-2xl font-bold text-slate-900 leading-tight">
+            ประจำเดือน ${MONTH_NAMES[activeMonthIdx]} ${selectedYear + 543}
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">
+            ${isActiveSubmitted 
+              ? 'คุณได้ทำการส่งข้อมูลผลการทดสอบของรอบนี้แล้ว สามารถคลิกดูผลหรือกดแก้ไขข้อมูลได้ตลอดระยะเวลาที่เปิดรับ' 
+              : 'เปิดรับรายงานผลการทดสอบ กรุณากรอกข้อมูลผลการตรวจวัดให้ครบถ้วนตามรายการที่กำหนด'
+            }
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5 self-start md:self-center">
+          ${isActiveSubmitted ? `
+            <button id="hero-view-btn" class="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl border border-slate-200 text-xs font-semibold shadow-2xs transition flex items-center gap-2">
+              <i data-lucide="eye" class="w-4 h-4 text-slate-500"></i>
+              <span>ดูผลที่ส่ง</span>
+            </button>
+            <button id="hero-edit-btn" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-600/20 transition flex items-center gap-2">
+              <i data-lucide="edit-3" class="w-4 h-4"></i>
+              <span>แก้ไขผลการทดสอบ</span>
+            </button>
+          ` : `
+            <button id="hero-enter-btn" class="px-6 py-3 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-sky-600/25 transition transform hover:-translate-y-0.5 flex items-center gap-2">
+              <i data-lucide="plus-circle" class="w-5 h-5"></i>
+              <span>บันทึกผลการทดสอบประจำเดือน ${MONTH_NAMES[activeMonthIdx]}</span>
+            </button>
+          `}
+        </div>
+      </div>
+      ${summaryBadges}
+    `;
+
+    activeContainer.appendChild(heroBanner);
+
+    // Event bindings for hero action buttons
+    document.getElementById('hero-view-btn')?.addEventListener('click', () => openEntryModal(userKey, selectedYear, activeMonthIdx, true));
+    document.getElementById('hero-edit-btn')?.addEventListener('click', () => openEntryModal(userKey, selectedYear, activeMonthIdx, false));
+    document.getElementById('hero-enter-btn')?.addEventListener('click', () => openEntryModal(userKey, selectedYear, activeMonthIdx, false));
+  } else {
+    // If not viewing current year (e.g. past year), show info banner
+    const noticeBanner = document.createElement('div');
+    noticeBanner.className = 'p-5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-600 text-xs flex items-center justify-between';
+    noticeBanner.innerHTML = `
+      <div class="flex items-center gap-3">
+        <i data-lucide="calendar" class="w-5 h-5 text-slate-400"></i>
+        <div>
+          <span class="font-bold text-slate-800">กำลังดูข้อมูลย้อนหลังประจำปี ${selectedYear + 543}</span>
+          <p class="text-slate-400 mt-0.5">การบันทึกผลรอบปัจจุบันจะเปิดให้ลงผลเฉพาะในปีปัจจุบันเท่านั้น</p>
+        </div>
+      </div>
+    `;
+    activeContainer.appendChild(noticeBanner);
+  }
+
+  // Helper to create compact month card
+  function createMonthCard(m, sub, lotInfo, isPastMonth, isSubmitted) {
+    const card = document.createElement('div');
+    card.className = `p-4 rounded-2xl border transition-all ${
+      isSubmitted 
+        ? 'bg-white border-emerald-200/90 shadow-2xs hover:shadow-xs' 
+        : 'bg-white border-slate-200/80 opacity-90'
+    }`;
+
+    let statusBadgeHtml = '';
+    if (isSubmitted) {
+      statusBadgeHtml = `
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <i data-lucide="check" class="w-3 h-3"></i> ส่งแล้ว
+        </span>
+      `;
+    } else {
+      statusBadgeHtml = `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+          <i data-lucide="lock" class="w-3 h-3"></i> ปิดรอบแล้ว
+        </span>
+      `;
+    }
+
+    let cardContentHtml = '';
+    if (isSubmitted) {
+      cardContentHtml = `
+        <div class="mt-2.5 pt-2.5 border-t border-slate-100 text-xs">
+          ${lotInfo?.lotNumber ? `<div class="text-[11px] font-mono text-indigo-600 font-bold mb-1">LOT: ${esc(lotInfo.lotNumber)}</div>` : ''}
+          <div class="text-[11px] text-slate-400 flex items-center justify-between mt-1">
+            <span>ส่งเมื่อ: ${esc(sub.submittedAt || '-')}</span>
+          </div>
+        </div>
+      `;
+    } else {
+      cardContentHtml = `
+        <div class="mt-2.5 pt-2.5 border-t border-slate-100 text-xs text-slate-400">
+          ${lotInfo?.lotNumber ? `<div class="text-[11px] font-mono text-indigo-500 font-medium mb-1">LOT: ${esc(lotInfo.lotNumber)}</div>` : ''}
+          <p class="text-[11px]">สิ้นสุดระยะเวลาการรายงานผล</p>
+        </div>
+      `;
+    }
+
+    const actionDiv = document.createElement('div');
+    actionDiv.className = 'mt-3 pt-2.5 border-t border-slate-100';
+
+    if (isSubmitted) {
+      const viewBtn = document.createElement('button');
+      viewBtn.className = 'w-full py-1.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition flex items-center justify-center gap-1.5';
+      viewBtn.innerHTML = '<i data-lucide="eye" class="w-3.5 h-3.5 text-slate-500"></i> ตรวจสอบผลย้อนหลัง';
+      viewBtn.onclick = () => openEntryModal(userKey, selectedYear, m, true);
+      actionDiv.appendChild(viewBtn);
+    } else {
+      const disabledBtn = document.createElement('button');
+      disabledBtn.disabled = true;
+      disabledBtn.className = 'w-full py-1.5 px-3 bg-slate-50 text-slate-400 text-xs font-medium rounded-lg cursor-not-allowed flex items-center justify-center gap-1.5 border border-slate-100';
+      disabledBtn.innerHTML = '<i data-lucide="lock" class="w-3 h-3"></i> ปิดรับรายงาน';
+      actionDiv.appendChild(disabledBtn);
+    }
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div class="font-bold text-slate-800 text-sm">
+          ${MONTH_NAMES[m]} ${selectedYear + 543}
+        </div>
+        ${statusBadgeHtml}
+      </div>
+      ${cardContentHtml}
+    `;
+    card.appendChild(actionDiv);
+    return card;
+  }
+
+  // 2. Iterate months to distribute into Section 1 (Submitted) and Section 2 (Past Months)
+  // Approach 2: Only show past months that have occurred; do NOT show future unopened months
   for (let m = 0; m < 12; m++) {
     const monthKey = `${userKey}_${selectedYear}_${m}`;
     const lotKey = `${selectedYear}_${m}`;
@@ -264,156 +504,66 @@ async function renderUserDashboard() {
 
     let isPastMonth = false;
     let isCurrentMonth = false;
-    let isFutureMonth = false;
 
     if (selectedYear < realYear) {
       isPastMonth = true;
-    } else if (selectedYear > realYear) {
-      isFutureMonth = true;
-    } else {
+    } else if (selectedYear === realYear) {
       if (m < realMonth) isPastMonth = true;
       else if (m === realMonth) isCurrentMonth = true;
-      else isFutureMonth = true;
     }
 
-    const card = document.createElement('div');
-    card.className = `p-5 rounded-2xl border transition-all ${
-      isSubmitted 
-        ? 'bg-white border-emerald-200/90 shadow-sm hover:shadow-md' 
-        : isCurrentMonth
-          ? 'bg-white border-sky-300 ring-2 ring-sky-100 shadow-sm'
-          : 'bg-white border-slate-200 opacity-90'
-    }`;
+    // Skip future months in Section 1 and Section 2 completely (as per user choice Approach 2)
+    const isFutureMonth = (selectedYear > realYear) || (selectedYear === realYear && m > realMonth);
+    if (isFutureMonth) {
+      continue;
+    }
 
-    let statusBadgeHtml = '';
+    // A. If submitted -> Add to Section 1 (Submitted Months)
     if (isSubmitted) {
-      statusBadgeHtml = `
-        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <i data-lucide="check" class="w-3 h-3"></i> บันทึกผลแล้ว
-        </span>
-      `;
-    } else if (isCurrentMonth) {
-      statusBadgeHtml = `
-        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-300 animate-pulse">
-          <i data-lucide="bell" class="w-3 h-3"></i> รอบเดือนปัจจุบัน
-        </span>
-      `;
-    } else if (isPastMonth) {
-      statusBadgeHtml = `
-        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-          <i data-lucide="lock" class="w-3 h-3"></i> สิ้นสุดระยะเวลา
-        </span>
-      `;
-    } else {
-      statusBadgeHtml = `
-        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-400 border border-slate-200">
-          <i data-lucide="clock" class="w-3 h-3"></i> ยังไม่เปิดรอบ
-        </span>
-      `;
+      submittedCardsCount++;
+      const card = createMonthCard(m, sub, lotInfo, isPastMonth, true);
+      submittedGrid.appendChild(card);
     }
 
-    let resultPreviewHtml = '';
-    if (isSubmitted) {
-      const summaryItems = [];
-      testConfigs.forEach(t => {
-        const testRes = sub.results?.[t.id];
-        if (testRes) {
-          const machineKeys = Object.keys(testRes);
-          machineKeys.forEach(mKey => {
-            const mData = testRes[mKey];
-            const lvDetails = Object.entries(mData).map(([lv, val]) => `${lv}: ${val}`).join(', ');
-            summaryItems.push(`
-              <div class="flex justify-between items-center text-slate-600">
-                <span class="font-medium text-slate-500">${t.name} (${mKey}):</span>
-                <span class="font-semibold text-slate-800 text-right truncate max-w-[150px]">${lvDetails} ${t.unit || ''}</span>
-              </div>
-            `);
-          });
-        }
-      });
-
-      resultPreviewHtml = `
-        <div class="mt-3 pt-3 border-t border-slate-100 space-y-1.5 text-xs">
-          ${lotInfo?.lotNumber ? `<div class="text-[11px] font-mono text-indigo-600 font-bold">LOT: ${lotInfo.lotNumber}</div>` : ''}
-          ${summaryItems.slice(0, 3).join('')}
-          ${summaryItems.length > 3 ? `<div class="text-[10px] text-slate-400">และรายการอื่นอีก ${summaryItems.length - 3} รายการ...</div>` : ''}
-          <div class="text-[10px] text-slate-400 pt-1 flex items-center justify-between">
-            <span>บันทึกเมื่อ: ${sub.submittedAt}</span>
-          </div>
-        </div>
-      `;
-    } else {
-      let descText = 'ยังไม่มีการบันทึกผลในรอบนี้';
-      if (isCurrentMonth) descText = lotInfo?.lotNumber ? `เปิดรอบการบันทึกผล (LOT: ${lotInfo.lotNumber})` : 'พร้อมสำหรับการบันทึกผลการทดสอบประจำเดือนนี้';
-      if (isPastMonth) descText = 'รอบรายงานนี้ปิดรับการส่งผลแล้ว';
-      if (isFutureMonth) descText = 'จะเปิดให้รายงานเมื่อถึงรอบประจำเดือน';
-
-      resultPreviewHtml = `
-        <div class="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-400 py-2">
-          ${lotInfo?.lotNumber ? `<div class="text-[11px] font-mono text-indigo-600 font-bold mb-1">LOT: ${lotInfo.lotNumber}</div>` : ''}
-          ${descText}
-        </div>
-      `;
+    // B. If past month and NOT submitted -> Add to Section 2 (Past Unsubmitted Months)
+    if (isPastMonth && !isSubmitted) {
+      othersCardsCount++;
+      const card = createMonthCard(m, sub, lotInfo, true, false);
+      othersGrid.appendChild(card);
     }
+  }
 
-    const actionDiv = document.createElement('div');
-    actionDiv.className = 'mt-4 pt-3 border-t border-slate-100';
+  // Update Section Badges
+  if (badgeSubCount) badgeSubCount.textContent = `${submittedCardsCount} รอบ`;
+  if (badgeOthCount) badgeOthCount.textContent = `${othersCardsCount} รอบ`;
 
-    if (isSubmitted) {
-      if (isPastMonth) {
-        const viewBtn = document.createElement('button');
-        viewBtn.className = 'w-full py-1.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition flex items-center justify-center gap-1.5';
-        viewBtn.innerHTML = '<i data-lucide="eye" class="w-3.5 h-3.5 text-slate-500"></i> ตรวจสอบผลการทดสอบย้อนหลัง';
-        viewBtn.onclick = () => openEntryModal(userKey, selectedYear, m, true);
-        actionDiv.appendChild(viewBtn);
-      } else {
-        actionDiv.className += ' grid grid-cols-2 gap-2';
-        const viewBtn = document.createElement('button');
-        viewBtn.className = 'w-full py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition flex items-center justify-center gap-1';
-        viewBtn.innerHTML = '<i data-lucide="eye" class="w-3.5 h-3.5 text-slate-500"></i> ดูผล';
-        viewBtn.onclick = () => openEntryModal(userKey, selectedYear, m, true);
-
-        const editBtn = document.createElement('button');
-        editBtn.className = 'w-full py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-medium rounded-lg border border-sky-200 transition flex items-center justify-center gap-1';
-        editBtn.innerHTML = '<i data-lucide="edit-3" class="w-3.5 h-3.5 text-sky-600"></i> แก้ไขผล';
-        editBtn.onclick = () => openEntryModal(userKey, selectedYear, m, false);
-
-        actionDiv.appendChild(viewBtn);
-        actionDiv.appendChild(editBtn);
-      }
-    } else {
-      if (isCurrentMonth) {
-        const enterBtn = document.createElement('button');
-        enterBtn.className = 'w-full py-2 px-3 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center justify-center gap-1.5';
-        enterBtn.innerHTML = '<i data-lucide="plus-circle" class="w-4 h-4"></i> บันทึกผลการทดสอบ';
-        enterBtn.onclick = () => openEntryModal(userKey, selectedYear, m, false);
-        actionDiv.appendChild(enterBtn);
-      } else {
-        const disabledBtn = document.createElement('button');
-        disabledBtn.disabled = true;
-        disabledBtn.className = 'w-full py-2 px-3 bg-slate-100 text-slate-400 text-xs font-medium rounded-lg cursor-not-allowed flex items-center justify-center gap-1.5';
-        disabledBtn.innerHTML = `<i data-lucide="${isPastMonth ? 'lock' : 'clock'}" class="w-3.5 h-3.5"></i> ${isPastMonth ? 'ปิดรับการรายงาน' : 'ยังไม่เปิดให้บันทึก'}`;
-        actionDiv.appendChild(disabledBtn);
-      }
-    }
-
-    card.innerHTML = `
-      <div class="flex items-center justify-between">
-        <div class="font-bold text-slate-800 text-base">
-          ${MONTH_NAMES[m]}
-        </div>
-        ${statusBadgeHtml}
+  // Empty state handling
+  if (submittedCardsCount === 0 && submittedGrid) {
+    submittedGrid.innerHTML = `
+      <div class="col-span-full py-8 text-center text-slate-400 text-xs">
+        <i data-lucide="file-question" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+        <div>ยังไม่มีรอบที่บันทึกผลสำเร็จในปีนี้</div>
       </div>
-      ${resultPreviewHtml}
     `;
-    card.appendChild(actionDiv);
-    container.appendChild(card);
+  }
+
+  if (othersCardsCount === 0 && othersGrid) {
+    othersGrid.innerHTML = `
+      <div class="col-span-full py-8 text-center text-slate-400 text-xs">
+        <i data-lucide="check-check" class="w-8 h-8 mx-auto mb-2 text-emerald-400"></i>
+        <div>ไม่มีรอบเดือนเก่าที่ค้างส่ง (รายงานครบถ้วนทุกรอบที่ผ่านมา)</div>
+      </div>
+    `;
   }
 
   if (window.lucide) {
-    window.lucide.createIcons({ root: container });
+    window.lucide.createIcons();
   }
 }
+
+// ============================================================================
+// Multi-Level & Multi-Machine Entry Modal Controller
+// ============================================================================
 
 // ============================================================================
 // Multi-Level & Multi-Machine Entry Modal Controller
